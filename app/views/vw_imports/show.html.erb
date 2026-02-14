@@ -1,0 +1,227 @@
+<%# app/views/vw_imports/show.html.erb %>
+<%# iQs Landing Page — class headings with click-to-expand individual items %>
+
+<style>
+  :root { --green: #2d6a4f; --amber: #b8860b; --grey: #6b7280; }
+  .iqs-header { background: #1a1a2e; color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+  .iqs-header h1 { font: 800 18px 'IBM Plex Mono', monospace; letter-spacing: 1.5px; margin: 0; }
+  .iqs-header .meta { font-size: 12px; color: #8892a4; }
+  .iqs-summary { background: #252540; padding: 8px 24px; display: flex; gap: 16px; }
+  .iqs-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 3px; font: 700 10.5px/1 sans-serif; letter-spacing: 0.4px; color: #fff; }
+  .iqs-badge span { background: rgba(255,255,255,0.2); padding: 1px 6px; border-radius: 2px; }
+
+  .zone { margin: 16px 20px; }
+  .zone-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .zone-head .bar { width: 4px; height: 18px; border-radius: 2px; }
+  .zone-head h2 { font-size: 14px; font-weight: 700; margin: 0; color: #1a1a2e; }
+  .zone-head .sub { font-size: 11.5px; color: var(--grey); }
+
+  .qty-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border-radius: 6px; border: 1px solid #dfe3ea; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .qty-table th { padding: 8px 12px; text-align: right; font-size: 10.5px; font-weight: 700; color: #5a6272; letter-spacing: 0.3px; border-bottom: 2px solid #dfe3ea; white-space: nowrap; }
+  .qty-table th:first-child { text-align: left; min-width: 220px; }
+  .qty-table th .unit { font-weight: 400; color: #9ca3af; font-size: 9.5px; display: block; }
+
+  .class-row { cursor: pointer; }
+  .class-row:hover { background: #f7f8fa; }
+  .class-row.open { background: #f0f4f8; }
+  .class-row td { padding: 9px 12px; border-bottom: 1px solid #e2e6ec; }
+  .class-row .chevron { font-size: 11px; color: #8892a4; width: 14px; display: inline-block; text-align: center; }
+  .class-row .name { font-weight: 600; font-size: 13px; color: #1a1a2e; }
+  .class-row .count { font-weight: 700; font-size: 13px; text-align: right; font-family: 'IBM Plex Mono', monospace; }
+  .class-row .status { text-align: center; }
+
+  .badge-rated   { background: #d4edda; color: #155724; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+  .badge-unrated { background: #fff3cd; color: #856404; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+
+  .item-row { display: none; }
+  .item-row.visible { display: table-row; }
+  .item-row td { padding: 5px 12px; border-bottom: 1px solid #eef0f4; font-size: 11.5px; }
+  .item-row .num { text-align: right; font-family: 'IBM Plex Mono', monospace; color: #374151; }
+  .item-row .mat { font-size: 10.5px; color: #5a7a6a; padding-left: 32px; }
+  .item-row:nth-child(even) { background: #f2f5f7; }
+  .item-row:nth-child(odd)  { background: #f8fafb; }
+
+  .comp-row { display: none; }
+  .comp-row.visible { display: table-row; }
+  .comp-row td { padding: 3px 12px; border-bottom: 1px solid #f3f4f6; font-size: 10.5px; color: #6b7280; }
+  .comp-row td:first-child { padding-left: 32px; }
+  .comp-row .comp-class { color: #4b5563; font-weight: 500; }
+  .comp-row .comp-mat { color: #7c8a80; font-style: italic; }
+  .comp-row .num { text-align: right; font-family: 'IBM Plex Mono', monospace; color: #9ca3af; font-size: 10px; }
+  .comp-row { background: #fafbfc; }
+
+  .footer { margin: 20px 20px; padding: 12px 16px; background: #e8edf3; border-radius: 6px; font-size: 11.5px; color: #4b5563; line-height: 1.7; }
+</style>
+
+<div class="iqs-header">
+  <div>
+    <h1>iQs</h1>
+    <span class="meta">
+      <%= @import.project %> · V<%= @import.exporter_version %> ·
+      <%= number_with_delimiter(@import.object_count) %> objects ·
+      <%= @import.exported_at&.strftime("%d %b %Y %H:%M") %>
+    </span>
+  </div>
+</div>
+
+<div class="iqs-summary">
+  <div class="iqs-badge" style="background: var(--green);">
+    RATE-MATCHED <span><%= @matched.size %> classes · <%= @matched.values.sum(&:size) %> items</span>
+  </div>
+  <div class="iqs-badge" style="background: var(--amber);">
+    UNMATCHED <span><%= @unmatched.size %> classes · <%= @unmatched.values.sum(&:size) %> items</span>
+  </div>
+  <div class="iqs-badge" style="background: var(--grey);">
+    ANNOTATION <span><%= @annotation_count %> items (hidden)</span>
+  </div>
+</div>
+
+<%# ── Helper to render a zone table ── %>
+<% zone_table = ->(groups, zone_color, badge_class, sub_border, zone_prefix) do %>
+  <table class="qty-table">
+    <thead>
+      <tr>
+        <th>Class / Material</th>
+        <th>NO</th>
+        <th>Length <span class="unit">mm</span></th>
+        <th>Width <span class="unit">mm</span></th>
+        <th>Height <span class="unit">mm</span></th>
+        <th>Perimeter <span class="unit">mm</span></th>
+        <th>Area <span class="unit">m²</span></th>
+        <th>V.Area <span class="unit">m²</span></th>
+        <th>Volume <span class="unit">m³</span></th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% groups.each_with_index do |(vw_class, objects), gi| %>
+        <%# ── Class heading row ── %>
+        <% gid = "#{zone_prefix}-#{gi}" %>
+        <tr class="class-row"
+            style="border-left: 3px solid <%= zone_color %>;"
+            data-group="<%= gid %>"
+            onclick="toggleGroup(this, '<%= gid %>')">
+          <td>
+            <span class="chevron">▸</span>
+            <span class="name"><%= vw_class %></span>
+          </td>
+          <td class="count"><%= objects.size %></td>
+          <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+          <td class="status"><span class="<%= badge_class %>"><%= badge_class == 'badge-rated' ? 'RATED' : 'UNRATED' %></span></td>
+        </tr>
+
+        <%# ── Individual item rows (hidden until clicked) ── %>
+        <% objects.each do |obj| %>
+          <tr class="item-row" data-items="<%= gid %>" style="border-left: 3px solid <%= sub_border %>;">
+            <td class="mat">
+              <% if obj.material.present? %>
+                <%= truncate(obj.material, length: 45) %>
+              <% end %>
+            </td>
+            <td class="num">1</td>
+            <td class="num"><%= obj.uvw_length ? number_with_delimiter(obj.uvw_length) : '' %></td>
+            <td class="num"><%= obj.uvw_width  ? number_with_delimiter(obj.uvw_width)  : '' %></td>
+            <td class="num"><%= obj.uvw_height ? number_with_delimiter(obj.uvw_height) : '' %></td>
+            <td class="num"><%= obj.try(:perimeter) ? number_with_delimiter(obj.perimeter) : '' %></td>
+            <td class="num">
+              <% ap = obj.try(:area_plan) || obj.area %>
+              <% if ap %>
+                <%= number_with_precision(ap, precision: 2) %>
+              <% end %>
+            </td>
+            <td class="num">
+              <% if obj.try(:area_vertical) %>
+                <%= number_with_precision(obj.area_vertical, precision: 2) %>
+              <% end %>
+            </td>
+            <td class="num">
+              <% if obj.volume %>
+                <%= obj.volume < 0.01 ? number_with_precision(obj.volume, precision: 4) : number_with_precision(obj.volume, precision: 3) %>
+              <% end %>
+            </td>
+            <td></td>
+          </tr>
+
+          <%# ── Component rows beneath each item ── %>
+          <% (obj.components || []).each do |comp| %>
+            <% comp = comp.deep_symbolize_keys rescue comp %>
+            <% next unless comp[:class].present? %>
+            <%
+              # Inherit parent dimensions
+              comp_thick = comp[:thickness].to_f
+              top_off    = comp[:top_offset].to_f
+              bot_off    = comp[:bottom_offset].to_f
+              parent_len = obj.uvw_length.to_f        # wall run length
+              parent_h   = obj.uvw_height.to_f        # wall structural height
+              eff_h      = parent_h > 0 ? parent_h - top_off - bot_off : nil
+              comp_area  = (parent_len > 0 && eff_h && eff_h > 0) ? (parent_len * eff_h / 1e6) : nil
+            %>
+            <tr class="comp-row" data-items="<%= gid %>" style="border-left: 3px solid <%= sub_border %>;">
+              <td>
+                <span class="comp-class"><%= comp[:class] %></span>
+                <% if comp[:material].present? && comp[:material] != "0" %>
+                  — <span class="comp-mat"><%= truncate(comp[:material].to_s, length: 40) %></span>
+                <% end %>
+              </td>
+              <td class="num">1</td>
+              <td class="num"><%= parent_len > 0 ? number_with_delimiter(parent_len.round) : '' %></td>
+              <td class="num"><%= comp_thick > 0 ? number_with_precision(comp_thick, precision: 0) : '' %></td>
+              <td class="num"><%= eff_h && eff_h > 0 ? number_with_delimiter(eff_h.round) : '' %></td>
+              <td></td>
+              <td></td>
+              <td class="num"><%= comp_area ? number_with_precision(comp_area, precision: 2) : '' %></td>
+              <td></td>
+              <td></td>
+            </tr>
+          <% end %>
+        <% end %>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+
+<%# ── ZONE 1: RATE-MATCHED ── %>
+<div class="zone">
+  <div class="zone-head">
+    <div class="bar" style="background: var(--green);"></div>
+    <h2>Zone 1 — Rate-Matched</h2>
+    <span class="sub">Class matches rate library → auto-populates BOQ. Click a class to see individual items.</span>
+  </div>
+  <% zone_table.call(@matched, 'var(--green)', 'badge-rated', '#b5d4c4', 'm') %>
+</div>
+
+<%# ── ZONE 2: UNMATCHED ── %>
+<div class="zone">
+  <div class="zone-head">
+    <div class="bar" style="background: var(--amber);"></div>
+    <h2>Zone 2 — Unmatched</h2>
+    <span class="sub">No rate linked — operator reviews, assigns rate or dismisses</span>
+  </div>
+  <% zone_table.call(@unmatched, 'var(--amber)', 'badge-unrated', '#e8d48b', 'u') %>
+</div>
+
+<div class="footer">
+  <strong>UoM:</strong> NO = count · Length / Width / Height / Perimeter = mm · Area / V.Area = m² · Volume = m³<br>
+  <strong>Rule:</strong> No item is ever silently dropped. If it exists in the VW file, it appears here.
+</div>
+
+<script>
+function toggleGroup(headerRow, gid) {
+  var items = document.querySelectorAll('tr[data-items="' + gid + '"]');
+  var isOpen = headerRow.classList.contains('open');
+
+  if (isOpen) {
+    headerRow.classList.remove('open');
+    headerRow.querySelector('.chevron').textContent = '▸';
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.remove('visible');
+    }
+  } else {
+    headerRow.classList.add('open');
+    headerRow.querySelector('.chevron').textContent = '▾';
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.add('visible');
+    }
+  }
+}
+</script>

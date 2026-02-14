@@ -1,0 +1,26 @@
+<%# app/views/vw_imports/index.html.erb %>
+
+<h1>VW Imports</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Project</th>
+      <th>Exported</th>
+      <th>Objects</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @imports.each do |imp| %>
+      <tr>
+        <td><%= link_to imp.id, vw_import_path(imp) %></td>
+        <td><%= link_to imp.project, vw_import_path(imp) %></td>
+        <td><%= imp.exported_at&.strftime("%d %b %Y %H:%M") %></td>
+        <td><%= imp.object_count %></td>
+        <td><%= imp.status %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
