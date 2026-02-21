@@ -42,7 +42,7 @@ class VwObject < ApplicationRecord
     cl_down = vw_class.to_s.downcase
     return "matched" if CONSTRUCTION_KEYWORDS.any? { |k| cl_down.include?(k) }
 
-    has_3d = has_volume || [68, 71, 83, 84].include?(vw_type) || CONSTRUCTION_PIOS.include?(pio.to_s)
+    has_3d = has_volume || [24, 68, 71, 83, 84].include?(vw_type) || CONSTRUCTION_PIOS.include?(pio.to_s)
     return "unmatched" if has_3d
 
     "annotation"

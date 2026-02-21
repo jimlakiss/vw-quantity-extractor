@@ -14,5 +14,12 @@ Rails.application.routes.draw do
 
   # config/routes.rb — add inside Rails.application.routes.draw do
   resources :vw_imports, only: [:index, :show, :create]
-  
-end
+
+  # Mapping editor
+  resources :measurement_mappings, only: [:create, :update] do
+    collection do
+      get :sample_values   # GET /measurement_mappings/sample_values?vw_object_id=123
+    end
+  end
+
+  end

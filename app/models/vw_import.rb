@@ -4,8 +4,8 @@ class VwImport < ApplicationRecord
 
   validates :project, presence: true
 
-  scope :latest, -> { order(created_at: :desc) }
-  scope :ready,  -> { where(status: "ready") }
+  scope :latest, -> { order(Arel.sql("#{table_name}.created_at DESC")) }
+  scope :ready,  -> { where("#{table_name}.status = ?", "ready") }
 
   def matched_objects   = vw_objects.where(zone: "matched")
   def unmatched_objects  = vw_objects.where(zone: "unmatched")

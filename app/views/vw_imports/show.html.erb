@@ -1,83 +1,136 @@
 <%# app/views/vw_imports/show.html.erb %>
-<%# iQs Landing Page — class headings with click-to-expand individual items %>
+<%# iQs Staging Area — raw data + measurement mapping editor %>
 
 <style>
-  :root { --green: #2d6a4f; --amber: #b8860b; --grey: #6b7280; }
-  .iqs-header { background: #1a1a2e; color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
-  .iqs-header h1 { font: 800 18px 'IBM Plex Mono', monospace; letter-spacing: 1.5px; margin: 0; }
-  .iqs-header .meta { font-size: 12px; color: #8892a4; }
-  .iqs-summary { background: #252540; padding: 8px 24px; display: flex; gap: 16px; }
-  .iqs-badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 3px; font: 700 10.5px/1 sans-serif; letter-spacing: 0.4px; color: #fff; }
+  :root {
+    --green: #2d6a4f; --amber: #b8860b; --red: #b91c1c; --grey: #6b7280;
+    --bg-green: #d4edda; --bg-amber: #fff3cd; --bg-red: #fee2e2; --bg-grey: #e8edf3;
+    --blue: #1a5276;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f5f7; }
+
+  /* ── Header ── */
+  .iqs-header { background: #1a1a2e; color: #fff; padding: 14px 24px; }
+  .iqs-header h1 { font: 800 18px 'IBM Plex Mono', monospace; letter-spacing: 1.5px; }
+  .iqs-header .meta { font-size: 12px; color: #8892a4; margin-top: 2px; }
+  .iqs-summary { background: #252540; padding: 8px 24px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .iqs-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 3px; font: 700 10.5px/1 sans-serif; letter-spacing: 0.4px; color: #fff; }
   .iqs-badge span { background: rgba(255,255,255,0.2); padding: 1px 6px; border-radius: 2px; }
 
-  .zone { margin: 16px 20px; }
-  .zone-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .zone-head .bar { width: 4px; height: 18px; border-radius: 2px; }
-  .zone-head h2 { font-size: 14px; font-weight: 700; margin: 0; color: #1a1a2e; }
-  .zone-head .sub { font-size: 11.5px; color: var(--grey); }
+  /* ── Table ── */
+  .staging { margin: 16px 20px; }
+  .qty-table { width: 100%; border-collapse: collapse; font-size: 11.5px; background: #fff; border: 1px solid #dfe3ea; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .qty-table th { padding: 6px 8px; text-align: right; font-size: 10px; font-weight: 700; color: #5a6272; letter-spacing: 0.3px; border-bottom: 2px solid #dfe3ea; white-space: nowrap; }
+  .qty-table th:first-child { text-align: left; min-width: 200px; }
+  .qty-table th .unit { font-weight: 400; color: #9ca3af; }
 
-  .qty-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border-radius: 6px; border: 1px solid #dfe3ea; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-  .qty-table th { padding: 8px 12px; text-align: right; font-size: 10.5px; font-weight: 700; color: #5a6272; letter-spacing: 0.3px; border-bottom: 2px solid #dfe3ea; white-space: nowrap; }
-  .qty-table th:first-child { text-align: left; min-width: 220px; }
-  .qty-table th .unit { font-weight: 400; color: #9ca3af; font-size: 9.5px; display: block; }
-
-  .class-row { cursor: pointer; }
+  /* Class heading rows */
+  .class-row td { padding: 7px 8px; border-bottom: 1px solid #e2e6ec; cursor: pointer; }
   .class-row:hover { background: #f7f8fa; }
   .class-row.open { background: #f0f4f8; }
-  .class-row td { padding: 9px 12px; border-bottom: 1px solid #e2e6ec; }
-  .class-row .chevron { font-size: 11px; color: #8892a4; width: 14px; display: inline-block; text-align: center; }
-  .class-row .name { font-weight: 600; font-size: 13px; color: #1a1a2e; }
-  .class-row .count { font-weight: 700; font-size: 13px; text-align: right; font-family: 'IBM Plex Mono', monospace; }
-  .class-row .status { text-align: center; }
+  .class-row .chev { font-size: 10px; color: #8892a4; width: 12px; display: inline-block; transition: transform 0.15s; }
+  .class-row .name { font-weight: 600; font-size: 12px; color: #1a1a2e; }
+  .class-row .count { font-weight: 700; text-align: right; font-family: 'IBM Plex Mono', monospace; }
+  .btn-map { display: inline-block; padding: 2px 8px; font-size: 9px; font-weight: 700; border-radius: 3px; cursor: pointer; border: 1px solid #aaa; background: #f8f8f8; color: #333; letter-spacing: 0.5px; }
+  .btn-map:hover { background: #e2e6ec; }
 
-  .badge-rated   { background: #d4edda; color: #155724; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; }
-  .badge-unrated { background: #fff3cd; color: #856404; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+  /* Badges */
+  .badge-reviewed   { background: var(--bg-green); color: #155724; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; }
+  .badge-auto       { background: var(--bg-amber); color: #856404; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; }
+  .badge-unmapped   { background: var(--bg-red);   color: #991b1b; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; }
+  .badge-zone       { padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; }
+  .badge-matched    { background: var(--bg-green); color: #155724; }
+  .badge-unmatched  { background: var(--bg-amber); color: #856404; }
 
+  /* Item rows */
   .item-row { display: none; }
   .item-row.visible { display: table-row; }
-  .item-row td { padding: 5px 12px; border-bottom: 1px solid #eef0f4; font-size: 11.5px; }
+  .item-row td { padding: 4px 8px; border-bottom: 1px solid #eef0f4; font-size: 11px; }
   .item-row .num { text-align: right; font-family: 'IBM Plex Mono', monospace; color: #374151; }
-  .item-row .mat { font-size: 10.5px; color: #5a7a6a; padding-left: 32px; }
-  .item-row:nth-child(even) { background: #f2f5f7; }
-  .item-row:nth-child(odd)  { background: #f8fafb; }
+  .item-row .mat { font-size: 10px; color: #5a7a6a; padding-left: 24px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+  /* Component rows */
   .comp-row { display: none; }
   .comp-row.visible { display: table-row; }
-  .comp-row td { padding: 3px 12px; border-bottom: 1px solid #f3f4f6; font-size: 10.5px; color: #6b7280; }
-  .comp-row td:first-child { padding-left: 32px; }
+  .comp-row td { padding: 3px 8px; border-bottom: 1px solid #f3f4f6; font-size: 10px; color: #6b7280; }
+  .comp-row td:first-child { padding-left: 36px; }
   .comp-row .comp-class { color: #4b5563; font-weight: 500; }
   .comp-row .comp-mat { color: #7c8a80; font-style: italic; }
-  .comp-row .num { text-align: right; font-family: 'IBM Plex Mono', monospace; color: #9ca3af; font-size: 10px; }
+  .comp-row .num { text-align: right; font-family: 'IBM Plex Mono', monospace; color: #9ca3af; }
   .comp-row { background: #fafbfc; }
 
-  .footer { margin: 20px 20px; padding: 12px 16px; background: #e8edf3; border-radius: 6px; font-size: 11.5px; color: #4b5563; line-height: 1.7; }
+  .num { text-align: right; font-family: 'IBM Plex Mono', monospace; }
+  .status-col { text-align: center; white-space: nowrap; }
+
+  /* ── Mapping Panel ── */
+  .map-panel-row { display: none; }
+  .map-panel-row.visible { display: table-row; }
+  .map-panel { background: #f0f4f8; border: 2px solid #1a5276; border-radius: 4px; padding: 14px 16px; margin: 4px 0; }
+  .map-panel h3 { font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 10px; }
+  .map-panel .map-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .map-panel .map-avail { font-size: 11px; }
+  .map-panel .map-avail h4 { font-size: 10px; font-weight: 700; color: #5a6272; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .map-panel .avail-table { width: 100%; font-size: 10.5px; border-collapse: collapse; }
+  .map-panel .avail-table td { padding: 2px 6px; border-bottom: 1px solid #e2e6ec; }
+  .map-panel .avail-table .src-key { font-family: 'IBM Plex Mono', monospace; color: #4b5563; font-size: 10px; }
+  .map-panel .avail-table .src-val { text-align: right; font-family: 'IBM Plex Mono', monospace; color: #1a5276; font-weight: 600; }
+  .map-panel .avail-table .src-cat { background: #e2e6ec; font-weight: 700; font-size: 9px; color: #5a6272; padding: 4px 6px; letter-spacing: 0.5px; }
+
+  .map-panel .map-assign h4 { font-size: 10px; font-weight: 700; color: #5a6272; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .map-panel .assign-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .map-panel .assign-label { font-size: 11px; font-weight: 600; color: #1a1a2e; width: 70px; flex-shrink: 0; }
+  .map-panel .assign-select { flex: 1; font-size: 11px; padding: 4px 6px; border: 1px solid #c0c7d0; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; background: #fff; }
+  .map-panel .assign-preview { font-size: 10px; color: #1a5276; font-family: 'IBM Plex Mono', monospace; min-width: 60px; text-align: right; }
+
+  .map-panel .map-actions { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
+  .map-panel .btn-save { padding: 6px 16px; font-size: 11px; font-weight: 700; border: none; border-radius: 3px; cursor: pointer; color: #fff; background: var(--green); }
+  .map-panel .btn-save:hover { background: #1a5e40; }
+  .map-panel .btn-save-wild { padding: 6px 16px; font-size: 11px; font-weight: 700; border: 1px solid var(--amber); border-radius: 3px; cursor: pointer; color: #856404; background: var(--bg-amber); }
+  .map-panel .btn-cancel { padding: 6px 16px; font-size: 11px; border: 1px solid #c0c7d0; border-radius: 3px; cursor: pointer; background: #fff; color: #374151; }
+  .map-panel .save-msg { font-size: 11px; color: var(--green); font-weight: 600; display: none; }
+
+  /* Component mapping section */
+  .map-panel .comp-section { margin-top: 14px; border-top: 1px solid #c0c7d0; padding-top: 10px; }
+  .map-panel .comp-header { font-size: 11px; font-weight: 700; color: #4b5563; margin-bottom: 6px; cursor: pointer; }
+  .map-panel .comp-header .chev { font-size: 9px; color: #8892a4; }
+  .map-panel .comp-body { display: none; padding-left: 8px; }
+  .map-panel .comp-body.visible { display: block; }
+  .map-panel .comp-item { margin-bottom: 10px; padding: 8px; background: #fff; border: 1px solid #e2e6ec; border-radius: 3px; }
+  .map-panel .comp-item h5 { font-size: 10px; color: #4b5563; margin-bottom: 6px; }
+  .map-panel .comp-info { font-size: 10px; color: #6b7280; font-family: 'IBM Plex Mono', monospace; margin-bottom: 6px; }
+
+  .footer { margin: 16px 20px; padding: 10px 14px; background: var(--bg-grey); border-radius: 4px; font-size: 11px; color: #4b5563; line-height: 1.7; }
 </style>
 
+<%# ── HEADER ── %>
 <div class="iqs-header">
-  <div>
-    <h1>iQs</h1>
-    <span class="meta">
-      <%= @import.project %> · V<%= @import.exporter_version %> ·
-      <%= number_with_delimiter(@import.object_count) %> objects ·
-      <%= @import.exported_at&.strftime("%d %b %Y %H:%M") %>
-    </span>
-  </div>
+  <h1>iQs STAGING</h1>
+  <span class="meta">
+    <%= @import.project %> · V<%= @import.exporter_version %> ·
+    <%= number_with_delimiter(@import.object_count) %> objects ·
+    <%= @import.exported_at&.strftime("%d %b %Y %H:%M") %>
+  </span>
 </div>
 
 <div class="iqs-summary">
-  <div class="iqs-badge" style="background: var(--green);">
-    RATE-MATCHED <span><%= @matched.size %> classes · <%= @matched.values.sum(&:size) %> items</span>
-  </div>
-  <div class="iqs-badge" style="background: var(--amber);">
-    UNMATCHED <span><%= @unmatched.size %> classes · <%= @unmatched.values.sum(&:size) %> items</span>
-  </div>
-  <div class="iqs-badge" style="background: var(--grey);">
-    ANNOTATION <span><%= @annotation_count %> items (hidden)</span>
-  </div>
+  <% if @summary[:unmapped] > 0 %>
+    <div class="iqs-badge" style="background: var(--red);">UNMAPPED <span><%= @summary[:unmapped] %></span></div>
+  <% end %>
+  <% if @summary[:auto_wildcard] > 0 %>
+    <div class="iqs-badge" style="background: var(--amber);">AUTO* <span><%= @summary[:auto_wildcard] %></span></div>
+  <% end %>
+  <% if @summary[:auto_exact] > 0 %>
+    <div class="iqs-badge" style="background: var(--green);">AUTO <span><%= @summary[:auto_exact] %></span></div>
+  <% end %>
+  <% if @summary[:reviewed] > 0 %>
+    <div class="iqs-badge" style="background: var(--blue);">REVIEWED <span><%= @summary[:reviewed] %></span></div>
+  <% end %>
+  <div class="iqs-badge" style="background: var(--grey);">ANNOTATION <span><%= @annotation_count %></span></div>
 </div>
 
-<%# ── Helper to render a zone table ── %>
-<% zone_table = ->(groups, zone_color, badge_class, sub_border, zone_prefix) do %>
+<%# ── STAGING TABLE ── %>
+<div class="staging">
   <table class="qty-table">
     <thead>
       <tr>
@@ -86,91 +139,434 @@
         <th>Length <span class="unit">mm</span></th>
         <th>Width <span class="unit">mm</span></th>
         <th>Height <span class="unit">mm</span></th>
-        <th>Perimeter <span class="unit">mm</span></th>
+        <th>Perim <span class="unit">mm</span></th>
         <th>Area <span class="unit">m²</span></th>
         <th>V.Area <span class="unit">m²</span></th>
-        <th>Volume <span class="unit">m³</span></th>
-        <th>Status</th>
+        <th>Vol <span class="unit">m³</span></th>
+        <th>Map</th>
       </tr>
     </thead>
     <tbody>
-      <% groups.each_with_index do |(vw_class, objects), gi| %>
+      <% @groups.each_with_index do |group, gi| %>
+        <%
+          gid        = "g-#{gi}"
+          mapping    = group[:mapping]
+          conf       = group[:confidence]
+          sample_obj = group[:objects].first
+          border_col = conf == 'unmapped' ? 'var(--red)' : conf.start_with?('auto') ? 'var(--amber)' : 'var(--green)'
+          sub_border = conf == 'unmapped' ? '#fca5a5'    : conf.start_with?('auto') ? '#e8d48b'      : '#b5d4c4'
+
+          # Pre-compute available values for the sample object
+          resolver = MappingResolver.new(sample_obj, nil)
+          avail = resolver.available_values
+
+          # Pre-compute component info
+          sample_comps = (sample_obj.components || []).map { |c|
+            c = c.deep_symbolize_keys rescue c
+            next unless c[:class].present?
+            c
+          }.compact
+        %>
+
         <%# ── Class heading row ── %>
-        <% gid = "#{zone_prefix}-#{gi}" %>
-        <tr class="class-row"
-            style="border-left: 3px solid <%= zone_color %>;"
-            data-group="<%= gid %>"
-            onclick="toggleGroup(this, '<%= gid %>')">
-          <td>
-            <span class="chevron">▸</span>
-            <span class="name"><%= vw_class %></span>
+        <tr class="class-row" style="border-left: 3px solid <%= border_col %>;">
+          <td onclick="toggleGroup(this.parentElement, '<%= gid %>')">
+            <span class="chev">▸</span>
+            <span class="name"><%= group[:vw_class] %></span>
+            <span style="font-size:9px;color:#8892a4;margin-left:4px;">
+              type:<%= sample_obj.vw_type %><%= sample_obj.pio.present? ? " pio:#{sample_obj.pio}" : "" %>
+            </span>
           </td>
-          <td class="count"><%= objects.size %></td>
+          <td class="count"><%= group[:objects].size %></td>
           <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-          <td class="status"><span class="<%= badge_class %>"><%= badge_class == 'badge-rated' ? 'RATED' : 'UNRATED' %></span></td>
+          <td class="status-col">
+            <span class="btn-map" onclick="toggleMapPanel('<%= gid %>')">
+              <%= if conf == "unmapped" then "MAP"
+                  elsif conf == "auto_wildcard" then "AUTO*"
+                  elsif conf == "auto_exact" then "AUTO"
+                  elsif conf == "reviewed" then "✓"
+                  end %>
+            </span>
+          </td>
         </tr>
 
-        <%# ── Individual item rows (hidden until clicked) ── %>
-        <% objects.each do |obj| %>
+        <%# ── Mapping Panel (hidden until MAP clicked) ── %>
+        <tr class="map-panel-row" id="map-<%= gid %>">
+          <td colspan="10" style="padding: 0; border-left: 3px solid var(--blue);">
+            <div class="map-panel">
+              <h3>
+                Measurement Mapping: <%= group[:vw_class] %>
+                <span style="font-size:10px;color:#6b7280;font-weight:400;">
+                  type=<%= sample_obj.vw_type %> · pio=<%= sample_obj.pio.presence || '—' %> · sample of <%= group[:objects].size %> objects
+                </span>
+              </h3>
+
+              <div class="map-grid">
+                <%# ── LEFT: Available raw values ── %>
+                <div class="map-avail">
+                  <h4>AVAILABLE RAW VALUES (sample object)</h4>
+                  <table class="avail-table">
+                    <%
+                      # Group available values by category
+                      categories = {
+                        "Dimensions" => avail.select { |k,_| k.start_with?("uvw.") },
+                        "Wall API"   => avail.select { |k,_| k.start_with?("wall.") },
+                        "PIO Dims"   => avail.select { |k,_| k.start_with?("pd.") },
+                        "Areas"      => avail.select { |k,_| k.start_with?("areas.") },
+                        "EAP"        => avail.select { |k,_| k.start_with?("eap.") },
+                        "3D Raw"     => avail.select { |k,_| k.start_with?("raw3d.") },
+                        "3D Sorted"  => avail.select { |k,_| k.start_with?("dims3d.") },
+                      }
+                    %>
+                    <% categories.each do |cat, vals| %>
+                      <% next if vals.empty? %>
+                      <tr><td colspan="2" class="src-cat"><%= cat %></td></tr>
+                      <% vals.each do |key, val| %>
+                        <tr>
+                          <td class="src-key"><%= key %></td>
+                          <td class="src-val">
+                            <% if val.is_a?(Numeric) %>
+                              <%= val > 100 ? number_with_delimiter(val.round) : number_with_precision(val, precision: 4) %>
+                            <% else %>
+                              <%= val %>
+                            <% end %>
+                          </td>
+                        </tr>
+                      <% end %>
+                    <% end %>
+                    <% if sample_comps.any? %>
+                      <tr><td colspan="2" class="src-cat">COMPONENTS (<%= sample_comps.size %>)</td></tr>
+                      <% sample_comps.each do |c| %>
+                        <%
+                          comp_name = c[:name].presence || c[:class]
+                          comp_thick = c[:thickness]
+                          comp_net_area = c[:net_area_m2]
+                          comp_net_vol  = c[:net_volume_m3]
+                          comp_eff_h    = c[:eff_height_mm]
+                          comp_len      = c[:length_mm]
+                        %>
+                        <tr>
+                          <td class="src-key"><%= comp_name %></td>
+                          <td class="src-val" style="font-size:9px;">
+                            <%= comp_thick %>mm
+                            <% if comp_eff_h && comp_eff_h > 0 %>
+                              · h=<%= comp_eff_h.round %>
+                            <% elsif c[:top_offset].to_f != 0 %>
+                              · top=<%= c[:top_offset] %>
+                            <% end %>
+                            <% if comp_net_area && comp_net_area > 0 %>
+                              · <strong><%= number_with_precision(comp_net_area, precision: 2) %> m²</strong>
+                            <% end %>
+                            <% if comp_net_vol && comp_net_vol > 0 %>
+                              · <%= number_with_precision(comp_net_vol, precision: 4) %> m³
+                            <% end %>
+                          </td>
+                        </tr>
+                      <% end %>
+                    <% end %>
+                  </table>
+                </div>
+
+                <%# ── RIGHT: UoM Assignment dropdowns ── %>
+                <div class="map-assign">
+                  <h4>ASSIGN TO BOQ COLUMNS</h4>
+
+                  <%
+                    # Build source options grouped by category
+                    # Only show options that have actual values OR are calculated
+                    all_opts = []
+                    avail.each { |k, v| all_opts << [k, v] }
+
+                    uom_fields = [
+                      ["Count",   :count_src,     "fixed_1"],
+                      ["Length",  :length_src,     nil],
+                      ["Width",   :width_src,      nil],
+                      ["Height",  :height_src,     nil],
+                      ["Perim",   :perimeter_src,  nil],
+                      ["Area",    :area_src,       nil],
+                      ["V.Area",  :wall_area_src,  nil],
+                      ["Volume",  :volume_src,     nil],
+                    ]
+                  %>
+
+                  <% uom_fields.each do |label, field, default_val| %>
+                    <%
+                      current_src = mapping ? mapping.send(field) : default_val
+                      preview_val = current_src && avail[current_src]
+                    %>
+                    <div class="assign-row">
+                      <span class="assign-label"><%= label %></span>
+                      <select class="assign-select"
+                              name="<%= field %>"
+                              data-panel="<%= gid %>"
+                              onchange="updatePreview(this, '<%= gid %>')">
+                        <option value="null" <%= 'selected' if current_src.nil? || current_src == 'null' %>>— not used —</option>
+                        <option value="fixed_1" <%= 'selected' if current_src == 'fixed_1' %>>fixed: 1</option>
+
+                        <%# ── Dynamic raw source groups ── %>
+                        <%
+                          raw_groups = avail.group_by { |k, _| k.split(".").first.split("[").first }
+                          raw_groups.sort.each do |group_name, entries|
+                        %>
+                          <optgroup label="<%= group_name %>">
+                            <% entries.sort_by(&:first).each do |k, v| %>
+                              <option value="<%= k %>" <%= 'selected' if current_src == k %>><%= k %> = <%= v.is_a?(Numeric) && v.abs > 100 ? number_with_delimiter(v.round) : number_with_precision(v.to_f, precision: 4) %></option>
+                            <% end %>
+                          </optgroup>
+                        <% end %>
+
+                        <optgroup label="Calculated">
+                          <option value="calc.l_x_h"        <%= 'selected' if current_src == 'calc.l_x_h' %>>calc: Length × Height (m²)</option>
+                          <option value="calc.l_x_w"        <%= 'selected' if current_src == 'calc.l_x_w' %>>calc: Length × Width (m²)</option>
+                          <option value="calc.l_x_w_x_h"    <%= 'selected' if current_src == 'calc.l_x_w_x_h' %>>calc: L × W × H (m³)</option>
+                          <option value="calc.perim_x_h"    <%= 'selected' if current_src == 'calc.perim_x_h' %>>calc: Perim × Height (m²)</option>
+                          <option value="calc.gross_x_thick" <%= 'selected' if current_src == 'calc.gross_x_thick' %>>calc: wall.gross × thickness (m³)</option>
+                          <option value="calc.area_x_thick"  <%= 'selected' if current_src == 'calc.area_x_thick' %>>calc: Area × thickness (m³)</option>
+                        </optgroup>
+                        <optgroup label="Circular Geometry">
+                          <option value="calc.circumference" <%= 'selected' if current_src == 'calc.circumference' %>>circ: Dia × π (circumference mm)</option>
+                          <option value="calc.curved_area"   <%= 'selected' if current_src == 'calc.curved_area' %>>circ: Dia × π × H (curved m²)</option>
+                          <option value="calc.circle_area"   <%= 'selected' if current_src == 'calc.circle_area' %>>circ: π/4 × Dia² (area m²)</option>
+                          <option value="calc.circle_vol"    <%= 'selected' if current_src == 'calc.circle_vol' %>>circ: π/4 × Dia² × H (vol m³)</option>
+                        </optgroup>
+                      </select>
+                    </div>
+                  <% end %>
+
+                  <%# ── Component Mapping Section ── %>
+                  <% if sample_comps.any? %>
+                    <div class="comp-section">
+                      <div class="comp-header" onclick="toggleCompSection('<%= gid %>')">
+                        <span class="chev" id="comp-chev-<%= gid %>">▸</span>
+                        COMPONENT MAPPINGS (<%= sample_comps.size %> layers)
+                      </div>
+                      <div class="comp-body" id="comp-body-<%= gid %>">
+                        <% sample_comps.each_with_index do |comp, comp_idx| %>
+                          <%
+                            comp_class = comp[:class]
+                            comp_mapping = mapping&.component_measurement_mappings
+                              &.find_by(component_class: comp_class, component_index: comp_idx)
+
+                            # All 8 fields — same as parent, with component-aware defaults
+                            comp_fields = [
+                              ["Count",  :count_src,     "fixed_1"],
+                              ["Length", :length_src,    "parent.length"],
+                              ["Width",  :width_src,     "comp.thickness"],
+                              ["Height", :height_src,    "calc.eff_height"],
+                              ["Perim",  :perimeter_src, "parent.perimeter"],
+                              ["Area",   :area_src,      nil],
+                              ["V.Area", :wall_area_src, "calc.comp_wall_area"],
+                              ["Volume", :volume_src,    "calc.comp_volume"],
+                            ]
+                            comp_key = "#{comp_class}##{comp_idx}"
+                          %>
+                          <div class="comp-item">
+                            <h5><%= comp_class %> <span style="font-size:10px;color:#888;">[#<%= comp_idx %>]</span></h5>
+                            <div class="comp-info">
+                              thick=<%= comp[:thickness] %>mm · top_off=<%= comp[:top_offset] %>mm · bot_off=<%= comp[:bottom_offset] %>mm
+                              <% if comp[:calc_eff_height] %>
+                                · eff_h=<%= comp[:calc_eff_height].round %>mm
+                              <% end %>
+                              <% if comp[:calc_gross_area] %>
+                                · gross=<%= number_with_precision(comp[:calc_gross_area], precision: 2) %>m²
+                              <% end %>
+                              <% if comp[:calc_net_area] %>
+                                · net=<%= number_with_precision(comp[:calc_net_area], precision: 2) %>m²
+                              <% end %>
+                              <% if comp[:material].present? && comp[:material] != "0" %>
+                                · <%= truncate(comp[:material].to_s, length: 30) %>
+                              <% end %>
+                            </div>
+                            <% comp_fields.each do |label, field, default_val| %>
+                              <%
+                                current_comp_src = comp_mapping ? comp_mapping.send(field) : default_val
+                              %>
+                              <div class="assign-row">
+                                <span class="assign-label" style="width:55px;font-size:10px;"><%= label %></span>
+                                <select class="assign-select" style="font-size:10px;"
+                                        name="comp[<%= comp_key %>][<%= field %>]"
+                                        data-panel="<%= gid %>">
+
+                                  <option value="null" <%= 'selected' if current_comp_src.nil? || current_comp_src == 'null' %>>— not used —</option>
+                                  <option value="fixed_1" <%= 'selected' if current_comp_src == 'fixed_1' %>>fixed: 1</option>
+
+                                  <optgroup label="Inherit Parent">
+                                    <option value="parent.length"    <%= 'selected' if current_comp_src == 'parent.length' %>>parent.length</option>
+                                    <option value="parent.width"     <%= 'selected' if current_comp_src == 'parent.width' %>>parent.width</option>
+                                    <option value="parent.height"    <%= 'selected' if current_comp_src == 'parent.height' %>>parent.height</option>
+                                    <option value="parent.perimeter" <%= 'selected' if current_comp_src == 'parent.perimeter' %>>parent.perimeter</option>
+                                    <option value="parent.area"      <%= 'selected' if current_comp_src == 'parent.area' %>>parent.area</option>
+                                    <option value="parent.wall_area" <%= 'selected' if current_comp_src == 'parent.wall_area' %>>parent.wall_area</option>
+                                    <option value="parent.volume"    <%= 'selected' if current_comp_src == 'parent.volume' %>>parent.volume</option>
+                                  </optgroup>
+
+                                  <%# ── Component fields: dynamically show all numeric values ── %>
+                                  <%
+                                    comp_exclude = %w[i class class_idx material material_idx texture function
+                                                      follow_top_peaks follow_bottom_peaks name]
+                                    comp_numerics = comp.select { |k, v|
+                                      v.is_a?(Numeric) && v != 0 && !comp_exclude.include?(k.to_s)
+                                    }.sort_by(&:first)
+                                  %>
+                                  <% if comp_numerics.any? %>
+                                    <optgroup label="Component Own">
+                                      <% comp_numerics.each do |k, v| %>
+                                        <option value="comp.<%= k %>" <%= 'selected' if current_comp_src == "comp.#{k}" %>>comp.<%= k %> = <%= v.is_a?(Numeric) && v.abs > 100 ? number_with_delimiter(v.round) : number_with_precision(v.to_f, precision: 4) %></option>
+                                      <% end %>
+                                    </optgroup>
+                                  <% end %>
+
+                                  <%# ── Dynamic raw source groups (same as parent) ── %>
+                                  <%
+                                    raw_groups = avail.group_by { |k, _| k.split(".").first.split("[").first }
+                                    raw_groups.sort.each do |group_name, entries|
+                                  %>
+                                    <optgroup label="<%= group_name %>">
+                                      <% entries.sort_by(&:first).each do |k, v| %>
+                                        <option value="<%= k %>" <%= 'selected' if current_comp_src == k %>><%= k %> = <%= v.is_a?(Numeric) && v.abs > 100 ? number_with_delimiter(v.round) : number_with_precision(v.to_f, precision: 4) %></option>
+                                      <% end %>
+                                    </optgroup>
+                                  <% end %>
+
+                                  <optgroup label="Calculated">
+                                    <option value="calc.l_x_h"          <%= 'selected' if current_comp_src == 'calc.l_x_h' %>>calc: Length × Height (m²)</option>
+                                    <option value="calc.l_x_w"          <%= 'selected' if current_comp_src == 'calc.l_x_w' %>>calc: Length × Width (m²)</option>
+                                    <option value="calc.l_x_w_x_h"      <%= 'selected' if current_comp_src == 'calc.l_x_w_x_h' %>>calc: L × W × H (m³)</option>
+                                    <option value="calc.perim_x_h"      <%= 'selected' if current_comp_src == 'calc.perim_x_h' %>>calc: Perim × Height (m²)</option>
+                                    <option value="calc.gross_x_thick"   <%= 'selected' if current_comp_src == 'calc.gross_x_thick' %>>calc: wall.gross × thick (m³)</option>
+                                    <option value="calc.area_x_thick"    <%= 'selected' if current_comp_src == 'calc.area_x_thick' %>>calc: Area × thickness (m³)</option>
+                                  </optgroup>
+                                  <optgroup label="Circular Geometry">
+                                    <option value="calc.circumference"   <%= 'selected' if current_comp_src == 'calc.circumference' %>>circ: Dia × π (circumference mm)</option>
+                                    <option value="calc.curved_area"     <%= 'selected' if current_comp_src == 'calc.curved_area' %>>circ: Dia × π × H (curved m²)</option>
+                                    <option value="calc.circle_area"     <%= 'selected' if current_comp_src == 'calc.circle_area' %>>circ: π/4 × Dia² (area m²)</option>
+                                    <option value="calc.circle_vol"      <%= 'selected' if current_comp_src == 'calc.circle_vol' %>>circ: π/4 × Dia² × H (vol m³)</option>
+                                  </optgroup>
+                                  <optgroup label="Component Calcs">
+                                    <option value="calc.eff_height"      <%= 'selected' if current_comp_src == 'calc.eff_height' %>>comp: eff_height (h − offsets)</option>
+                                    <option value="calc.comp_wall_area"  <%= 'selected' if current_comp_src == 'calc.comp_wall_area' %>>comp: wall area (l × eff_h)</option>
+                                    <option value="calc.comp_volume"     <%= 'selected' if current_comp_src == 'calc.comp_volume' %>>comp: volume (area × thick)</option>
+                                  </optgroup>
+                                </select>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <%# ── Save Buttons ── %>
+                  <div class="map-actions">
+                    <button class="btn-save" onclick="saveMapping('<%= gid %>', '<%= group[:vw_class] %>', <%= sample_obj.vw_type || 'null' %>, '<%= sample_obj.pio %>', false)">
+                      Save for "<%= group[:vw_class] %>"
+                    </button>
+                    <button class="btn-save-wild" onclick="saveMapping('<%= gid %>', '<%= group[:vw_class] %>', <%= sample_obj.vw_type || 'null' %>, '<%= sample_obj.pio %>', true)">
+                      Save as wildcard for type <%= sample_obj.vw_type %>
+                    </button>
+                    <button class="btn-cancel" onclick="toggleMapPanel('<%= gid %>')">Cancel</button>
+                    <span class="save-msg" id="save-msg-<%= gid %>">Saved!</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+
+        <%# ── Individual item rows ── %>
+        <% group[:objects].each do |obj| %>
+          <%
+            obj_resolver = mapping ? MappingResolver.new(obj, mapping) : nil
+            resolved = obj_resolver ? obj_resolver.resolve : {}
+          %>
           <tr class="item-row" data-items="<%= gid %>" style="border-left: 3px solid <%= sub_border %>;">
-            <td class="mat">
-              <% if obj.material.present? %>
-                <%= truncate(obj.material, length: 45) %>
-              <% end %>
-            </td>
-            <td class="num">1</td>
-            <td class="num"><%= obj.uvw_length ? number_with_delimiter(obj.uvw_length) : '' %></td>
-            <td class="num"><%= obj.uvw_width  ? number_with_delimiter(obj.uvw_width)  : '' %></td>
-            <td class="num"><%= obj.uvw_height ? number_with_delimiter(obj.uvw_height) : '' %></td>
-            <td class="num"><%= obj.try(:perimeter) ? number_with_delimiter(obj.perimeter) : '' %></td>
+            <td class="mat"><%= obj.material.present? ? truncate(obj.material, length: 50) : '' %></td>
+            <td class="num"><%= resolved[:count] || 1 %></td>
+            <td class="num"><%= resolved[:length]    ? number_with_delimiter(resolved[:length].round)    : '' %></td>
+            <td class="num"><%= resolved[:width]     ? number_with_delimiter(resolved[:width].round)     : '' %></td>
             <td class="num">
-              <% ap = obj.try(:area_plan) || obj.area %>
-              <% if ap %>
-                <%= number_with_precision(ap, precision: 2) %>
-              <% end %>
+              <%# Show start/end heights for walls when they differ (raked/peaked) %>
+              <%
+                raw = (obj.raw_json || {}).deep_symbolize_keys rescue {}
+                wall_data = raw[:wall] || {}
+                h_start = wall_data[:height_start_mm]&.to_f
+                h_end   = wall_data[:height_end_mm]&.to_f
+                n_peaks = wall_data[:n_peaks]&.to_i || 0
+                if h_start && h_start > 0 && h_end && h_end > 0 && (h_start - h_end).abs > 1
+                  # Raked or peaked — show both
+                %>
+                  <%= number_with_delimiter(h_start.round) %> / <%= number_with_delimiter(h_end.round) %>
+                  <% if n_peaks > 0 %>
+                    <span style="font-size:9px;color:#888;">+<%= n_peaks %>pk</span>
+                  <% end %>
+                <% elsif resolved[:height] %>
+                  <%= number_with_delimiter(resolved[:height].round) %>
+                <% end %>
             </td>
+            <td class="num"><%= resolved[:perimeter] ? number_with_delimiter(resolved[:perimeter].round) : '' %></td>
+            <td class="num"><%= resolved[:area]       ? number_with_precision(resolved[:area], precision: 2)       : '' %></td>
+            <td class="num"><%= resolved[:wall_area]  ? number_with_precision(resolved[:wall_area], precision: 2)  : '' %></td>
             <td class="num">
-              <% if obj.try(:area_vertical) %>
-                <%= number_with_precision(obj.area_vertical, precision: 2) %>
-              <% end %>
-            </td>
-            <td class="num">
-              <% if obj.volume %>
-                <%= obj.volume < 0.01 ? number_with_precision(obj.volume, precision: 4) : number_with_precision(obj.volume, precision: 3) %>
+              <% if resolved[:volume] %>
+                <%= resolved[:volume] < 0.01 ? number_with_precision(resolved[:volume], precision: 4) : number_with_precision(resolved[:volume], precision: 3) %>
               <% end %>
             </td>
             <td></td>
           </tr>
 
-          <%# ── Component rows beneath each item ── %>
-          <% (obj.components || []).each do |comp| %>
-            <% comp = comp.deep_symbolize_keys rescue comp %>
-            <% next unless comp[:class].present? %>
+          <%# ── Component rows ── %>
+          <% (obj.components || []).each_with_index do |comp_data, comp_idx| %>
+            <% comp_data = comp_data.deep_symbolize_keys rescue comp_data %>
+            <% next unless comp_data[:class].present? || comp_data[:name].present? %>
             <%
-              # Inherit parent dimensions
-              comp_thick = comp[:thickness].to_f
-              top_off    = comp[:top_offset].to_f
-              bot_off    = comp[:bottom_offset].to_f
-              parent_len = obj.uvw_length.to_f        # wall run length
-              parent_h   = obj.uvw_height.to_f        # wall structural height
-              eff_h      = parent_h > 0 ? parent_h - top_off - bot_off : nil
-              comp_area  = (parent_len > 0 && eff_h && eff_h > 0) ? (parent_len * eff_h / 1e6) : nil
+              comp_mapping_rec = mapping&.component_measurement_mappings
+                &.find_by(component_class: comp_data[:class], component_index: comp_idx)
+
+              if comp_mapping_rec && obj_resolver
+                comp_resolved = MappingResolver.new(obj, comp_mapping_rec,
+                  component: comp_data, parent_resolved: resolved).resolve
+              else
+                # ── V2.8: Direct from VW API — no calculation ──
+                # GetComponentNetArea(h,i)    → mm² (openings deducted, peaks/rakes correct)
+                # GetComponentWidth(h,i)      → mm
+                # GetComponentNetVolume(h,i)  → mm³
+                comp_len = comp_data[:length_mm]&.to_f
+                comp_len = resolved[:length] unless comp_len && comp_len > 0
+                comp_area = comp_data[:net_area_m2]&.to_f
+                comp_area = nil unless comp_area && comp_area > 0
+                comp_vol = comp_data[:net_volume_m3]&.to_f
+                comp_vol = nil unless comp_vol && comp_vol > 0
+
+                comp_resolved = {
+                  count:     1,
+                  length:    comp_len,
+                  width:     comp_data[:thickness]&.to_f,
+                  height:    nil,
+                  perimeter: nil,
+                  area:      nil,
+                  wall_area: comp_area,
+                  volume:    comp_vol,
+                }
+              end
+
+              # Display name: prefer component name, fall back to class
+              comp_display = comp_data[:name].presence || comp_data[:class]
             %>
             <tr class="comp-row" data-items="<%= gid %>" style="border-left: 3px solid <%= sub_border %>;">
               <td>
-                <span class="comp-class"><%= comp[:class] %></span>
-                <% if comp[:material].present? && comp[:material] != "0" %>
-                  — <span class="comp-mat"><%= truncate(comp[:material].to_s, length: 40) %></span>
+                <span class="comp-class"><%= comp_display %></span>
+                <% if comp_data[:material].present? && comp_data[:material].to_s != "0" %>
+                  — <span class="comp-mat"><%= truncate(comp_data[:material].to_s, length: 35) %></span>
                 <% end %>
               </td>
-              <td class="num">1</td>
-              <td class="num"><%= parent_len > 0 ? number_with_delimiter(parent_len.round) : '' %></td>
-              <td class="num"><%= comp_thick > 0 ? number_with_precision(comp_thick, precision: 0) : '' %></td>
-              <td class="num"><%= eff_h && eff_h > 0 ? number_with_delimiter(eff_h.round) : '' %></td>
-              <td></td>
-              <td></td>
-              <td class="num"><%= comp_area ? number_with_precision(comp_area, precision: 2) : '' %></td>
-              <td></td>
+              <td class="num"><%= comp_resolved[:count] || 1 %></td>
+              <td class="num"><%= comp_resolved[:length]    ? number_with_delimiter(comp_resolved[:length].round)    : '' %></td>
+              <td class="num"><%= comp_resolved[:width]     ? number_with_precision(comp_resolved[:width], precision: 0)  : '' %></td>
+              <td class="num"><%= comp_resolved[:height]    ? number_with_delimiter(comp_resolved[:height].round)    : '' %></td>
+              <td class="num"><%= comp_resolved[:perimeter] ? number_with_delimiter(comp_resolved[:perimeter].round) : '' %></td>
+              <td class="num"><%= comp_resolved[:area]      ? number_with_precision(comp_resolved[:area], precision: 2)     : '' %></td>
+              <td class="num"><%= comp_resolved[:wall_area] ? number_with_precision(comp_resolved[:wall_area], precision: 2) : '' %></td>
+              <td class="num"><%= comp_resolved[:volume]    ? number_with_precision(comp_resolved[:volume], precision: 4)    : '' %></td>
               <td></td>
             </tr>
           <% end %>
@@ -178,30 +574,15 @@
       <% end %>
     </tbody>
   </table>
-<% end %>
-
-<%# ── ZONE 1: RATE-MATCHED ── %>
-<div class="zone">
-  <div class="zone-head">
-    <div class="bar" style="background: var(--green);"></div>
-    <h2>Zone 1 — Rate-Matched</h2>
-    <span class="sub">Class matches rate library → auto-populates BOQ. Click a class to see individual items.</span>
-  </div>
-  <% zone_table.call(@matched, 'var(--green)', 'badge-rated', '#b5d4c4', 'm') %>
-</div>
-
-<%# ── ZONE 2: UNMATCHED ── %>
-<div class="zone">
-  <div class="zone-head">
-    <div class="bar" style="background: var(--amber);"></div>
-    <h2>Zone 2 — Unmatched</h2>
-    <span class="sub">No rate linked — operator reviews, assigns rate or dismisses</span>
-  </div>
-  <% zone_table.call(@unmatched, 'var(--amber)', 'badge-unrated', '#e8d48b', 'u') %>
 </div>
 
 <div class="footer">
-  <strong>UoM:</strong> NO = count · Length / Width / Height / Perimeter = mm · Area / V.Area = m² · Volume = m³<br>
+  <strong>UoM:</strong> NO = count · Length / Width / Height / Perim = mm · Area / V.Area = m² · Vol = m³<br>
+  <strong>Mapping:</strong>
+  <span class="btn-map" style="cursor:default;">MAP</span> = click to assign measurements ·
+  <span class="btn-map" style="cursor:default;">AUTO*</span> = wildcard match ·
+  <span class="btn-map" style="cursor:default;">AUTO</span> = exact match ·
+  <span class="btn-map" style="cursor:default;">✓</span> = reviewed<br>
   <strong>Rule:</strong> No item is ever silently dropped. If it exists in the VW file, it appears here.
 </div>
 
@@ -209,19 +590,104 @@
 function toggleGroup(headerRow, gid) {
   var items = document.querySelectorAll('tr[data-items="' + gid + '"]');
   var isOpen = headerRow.classList.contains('open');
-
   if (isOpen) {
     headerRow.classList.remove('open');
-    headerRow.querySelector('.chevron').textContent = '▸';
-    for (var i = 0; i < items.length; i++) {
-      items[i].classList.remove('visible');
-    }
+    headerRow.querySelector('.chev').textContent = '▸';
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('visible');
   } else {
     headerRow.classList.add('open');
-    headerRow.querySelector('.chevron').textContent = '▾';
-    for (var i = 0; i < items.length; i++) {
-      items[i].classList.add('visible');
-    }
+    headerRow.querySelector('.chev').textContent = '▾';
+    for (var i = 0; i < items.length; i++) items[i].classList.add('visible');
   }
+}
+
+function toggleMapPanel(gid) {
+  var panel = document.getElementById('map-' + gid);
+  panel.classList.toggle('visible');
+}
+
+function toggleCompSection(gid) {
+  var body = document.getElementById('comp-body-' + gid);
+  var chev = document.getElementById('comp-chev-' + gid);
+  if (body.classList.contains('visible')) {
+    body.classList.remove('visible');
+    chev.textContent = '▸';
+  } else {
+    body.classList.add('visible');
+    chev.textContent = '▾';
+  }
+}
+
+function saveMapping(gid, vwClass, vwType, pio, asWildcard) {
+  var panel = document.getElementById('map-' + gid);
+  var selects = panel.querySelectorAll('select[data-panel="' + gid + '"]');
+
+  // Build parent mapping
+  var classPattern = asWildcard ? '*' : vwClass;
+  var pioStr = (pio && pio !== '' && pio !== 'null') ? pio : '';
+  var typeStr = vwType !== null ? vwType : '*';
+  var mappingKey = classPattern + '|' + typeStr + '|' + pioStr;
+
+  var body = {
+    mapping_key:   mappingKey,
+    class_pattern: classPattern,
+    vw_type:       vwType,
+    pio:           pioStr || null,
+    confidence:    'manual',
+  };
+
+  // Read parent UoM selects
+  selects.forEach(function(sel) {
+    var name = sel.getAttribute('name');
+    if (name && !name.startsWith('comp[')) {
+      var val = sel.value;
+      body[name] = (val === 'null') ? null : val;
+    }
+  });
+
+  // Read component selects
+  var components = {};
+  selects.forEach(function(sel) {
+    var name = sel.getAttribute('name');
+    if (name && name.startsWith('comp[')) {
+      // name = "comp[Component-Plasterboard#0][length_src]"
+      var match = name.match(/^comp\[([^\]]+)\]\[([^\]]+)\]$/);
+      if (match) {
+        var compKey = match[1];  // "Component-Plasterboard#0"
+        var field = match[2];
+        if (!components[compKey]) {
+          var parts = compKey.split('#');
+          components[compKey] = {
+            component_class: parts[0],
+            component_index: parseInt(parts[1] || '0', 10),
+          };
+        }
+        var val = sel.value;
+        components[compKey][field] = (val === 'null') ? null : val;
+      }
+    }
+  });
+
+  var compArray = Object.values(components);
+  if (compArray.length > 0) body.components = compArray;
+
+  // POST to save
+  fetch('/measurement_mappings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  .then(function(resp) { return resp.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      var msg = document.getElementById('save-msg-' + gid);
+      msg.style.display = 'inline';
+      msg.textContent = 'Saved! (' + data.key + ')';
+      setTimeout(function() { window.location.reload(); }, 800);
+    } else {
+      alert('Save failed: ' + (data.errors || []).join(', '));
+    }
+  })
+  .catch(function(err) { alert('Error: ' + err); });
 }
 </script>
