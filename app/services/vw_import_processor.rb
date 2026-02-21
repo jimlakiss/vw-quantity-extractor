@@ -1,6 +1,6 @@
 # app/services/vw_import_processor.rb
 #
-# Takes the JSON payload from V2.6 exporter, creates VwImport + VwObjects.
+# Takes the JSON payload from V2.8 exporter, creates VwImport + VwObjects.
 # All the quantity extraction logic lives here — single source of truth.
 #
 class VwImportProcessor
@@ -80,6 +80,10 @@ class VwImportProcessor
       layer:        r[:layer],
       vw_type:      t,
       pio:          pio,
+      name:         r[:name].to_s.presence,
+      description:  r[:description].to_s.presence,
+      ifc_entity:   r[:ifc_entity].to_s.presence,
+      style_name:   r[:style_name].to_s.presence,
       uvw_length:   l&.round,
       uvw_width:    w&.round,
       uvw_height:   h&.round,

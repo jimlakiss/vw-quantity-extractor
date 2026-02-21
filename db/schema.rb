@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_15_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_21_081450) do
   create_table "component_measurement_mappings", force: :cascade do |t|
     t.string "area_src"
     t.string "component_class", null: false
@@ -41,6 +41,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_000004) do
     t.string "height_src"
     t.string "length_src"
     t.string "mapping_key", null: false
+    t.string "name_src"
     t.text "notes"
     t.string "perimeter_src"
     t.string "pio"
@@ -72,12 +73,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_000004) do
     t.decimal "area_vertical", precision: 12, scale: 4
     t.json "components", default: []
     t.datetime "created_at", null: false
+    t.string "description"
+    t.string "ifc_entity"
     t.string "iqs_uuid"
     t.string "layer"
     t.string "material"
+    t.string "name"
     t.integer "perimeter"
     t.string "pio"
     t.json "raw_json", default: {}
+    t.string "style_name"
     t.datetime "updated_at", null: false
     t.integer "uvw_height"
     t.integer "uvw_length"

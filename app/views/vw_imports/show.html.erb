@@ -160,21 +160,63 @@
           resolver = MappingResolver.new(sample_obj, nil)
           avail = resolver.available_values
 
-          # Pre-compute component info
-          sample_comps = (sample_obj.components || []).map { |c|
+          # Pre-compute component info — include any component with a class OR name
+          sample_comps = (sample_obj.components || []).each_with_index.map { |c, idx|
             c = c.deep_symbolize_keys rescue c
-            next unless c[:class].present?
-            c
+            next unless c[:class].present? || c[:name].present?
+            c.merge(_idx: idx)  # carry original index
           }.compact
         %>
 
         <%# ── Class heading row ── %>
+        <%
+          # Resolve display name for header from mapping's name_src
+          header_raw = (sample_obj.raw_json || {}).deep_symbolize_keys rescue {}
+          header_name = nil
+          header_name_src = mapping&.name_src
+
+          if header_name_src.present? && header_name_src != "null"
+            header_name = case header_name_src
+            when "vw_name"     then header_raw[:vw_name]
+            when "description" then header_raw[:description]
+            when "ifc_entity"  then header_raw[:ifc_entity]
+            when "ifc_name"    then header_raw[:ifc_name]
+            when "style_name"  then header_raw[:style_name]
+            when "class"       then header_raw[:class]
+            when "pio"         then header_raw[:pio]
+            when "material"    then sample_obj.material
+            when "layer"       then header_raw[:layer]
+            when "tags"        then (header_raw[:tags] || []).join(", ")
+            when /\Awall\./    then header_raw.dig(:wall, header_name_src.sub("wall.", "").to_sym)
+            when /\Aslab\./    then header_raw.dig(:slab, header_name_src.sub("slab.", "").to_sym)
+            when /\Apio\./     then header_raw.dig(:pio_params, header_name_src.sub("pio.", "").to_sym)
+            when /\Arec\./
+              rec_ref = header_name_src.sub("rec.", "")
+              if rec_ref.include?("::")
+                rn, fn = rec_ref.split("::", 2)
+                (header_raw[:records] || []).each do |r|
+                  r = r.deep_symbolize_keys rescue r
+                  if r[:record].to_s == rn
+                    val = r.dig(:fields, fn.to_sym)
+                    break val if val.present?
+                  end
+                end
+              end
+            when /\Auf\./      then header_raw.dig(:user_fields, header_name_src.sub("uf.", "").to_sym)
+            end
+            header_name = header_name.to_s.strip.presence
+          end
+          header_name ||= sample_obj.name.presence
+        %>
         <tr class="class-row" style="border-left: 3px solid <%= border_col %>;">
           <td onclick="toggleGroup(this.parentElement, '<%= gid %>')">
             <span class="chev">▸</span>
             <span class="name"><%= group[:vw_class] %></span>
+            <% if header_name.present? %>
+              <span style="font-size:10px;color:#1a5276;margin-left:4px;font-weight:600;"><%= truncate(header_name, length: 30) %></span>
+            <% end %>
             <span style="font-size:9px;color:#8892a4;margin-left:4px;">
-              type:<%= sample_obj.vw_type %><%= sample_obj.pio.present? ? " pio:#{sample_obj.pio}" : "" %>
+              type:<%= sample_obj.vw_type %><%= sample_obj.pio.present? ? " pio:#{sample_obj.pio}" : "" %><%= sample_obj.ifc_entity.present? ? " ifc:#{sample_obj.ifc_entity}" : "" %>
             </span>
           </td>
           <td class="count"><%= group[:objects].size %></td>
@@ -211,6 +253,7 @@
                       categories = {
                         "Dimensions" => avail.select { |k,_| k.start_with?("uvw.") },
                         "Wall API"   => avail.select { |k,_| k.start_with?("wall.") },
+                        "Slab API"   => avail.select { |k,_| k.start_with?("slab.") },
                         "PIO Dims"   => avail.select { |k,_| k.start_with?("pd.") },
                         "Areas"      => avail.select { |k,_| k.start_with?("areas.") },
                         "EAP"        => avail.select { |k,_| k.start_with?("eap.") },
@@ -270,6 +313,89 @@
                 <%# ── RIGHT: UoM Assignment dropdowns ── %>
                 <div class="map-assign">
                   <h4>ASSIGN TO BOQ COLUMNS</h4>
+
+                  <%# ── Display Name selector ── %>
+                  <%
+                    # Collect all available text fields from the sample object
+                    name_sources = []
+                    raw = (sample_obj.raw_json || {}).deep_symbolize_keys rescue {}
+
+                    # Direct object fields
+                    { "vw_name" => raw[:vw_name],
+                      "description" => raw[:description],
+                      "ifc_entity" => raw[:ifc_entity],
+                      "ifc_name" => raw[:ifc_name],
+                      "style_name" => raw[:style_name],
+                      "class" => raw[:class],
+                      "pio" => raw[:pio],
+                      "material" => sample_obj.material,
+                      "layer" => raw[:layer],
+                    }.each do |key, val|
+                      next unless val.present? && val.to_s.strip != "" && val.to_s.strip.downcase != "none"
+                      name_sources << [key, val.to_s.truncate(60)]
+                    end
+
+                    # Tags (if present)
+                    if raw[:tags].is_a?(Array) && raw[:tags].any?
+                      name_sources << ["tags", raw[:tags].join(", ").truncate(60)]
+                    end
+
+                    # Wall sub-dict text fields
+                    (raw[:wall] || {}).each do |k, v|
+                      next unless v.is_a?(String) && v.strip.present? && v.strip.length > 1
+                      name_sources << ["wall.#{k}", v.to_s.truncate(60)]
+                    end
+
+                    # Slab sub-dict text fields
+                    (raw[:slab] || {}).each do |k, v|
+                      next unless v.is_a?(String) && v.strip.present? && v.strip.length > 1
+                      name_sources << ["slab.#{k}", v.to_s.truncate(60)]
+                    end
+
+                    # PIO params — ALL text values (this is the rich dump for doors/windows)
+                    (raw[:pio_params] || {}).each do |k, v|
+                      next unless v.is_a?(String) && v.strip.present? && v.strip.length > 1
+                      next if v.strip =~ /\A[\d\.\-]+\z/  # skip pure numbers
+                      name_sources << ["pio.#{k}", v.to_s.truncate(60)]
+                    end
+
+                    # Record fields — ALL text values from attached records
+                    (raw[:records] || []).each do |rec|
+                      rec = rec.deep_symbolize_keys rescue rec
+                      rn = rec[:record].to_s
+                      (rec[:fields] || {}).each do |k, v|
+                        next unless v.is_a?(String) && v.strip.present? && v.strip.length > 1
+                        next if v.strip =~ /\A[\d\.\-]+\z/
+                        label = rn.present? ? "rec.#{rn}::#{k}" : "rec.#{k}"
+                        name_sources << [label, v.to_s.truncate(60)]
+                      end
+                    end
+
+                    # User fields (promoted from records + pio_params)
+                    (raw[:user_fields] || {}).each do |k, v|
+                      next unless v.is_a?(String) && v.strip.present? && v.strip.length > 1
+                      next if v.strip =~ /\A[\d\.\-]+\z/
+                      uf_key = "uf.#{k}"
+                      # Skip if already covered by pio. or rec. above
+                      next if name_sources.any? { |nk, _| nk == uf_key }
+                      name_sources << [uf_key, v.to_s.truncate(60)]
+                    end
+
+                    current_name_src = mapping&.name_src
+                    vw_name_val = raw[:vw_name].to_s.strip.presence
+                  %>
+                  <div class="assign-row" style="margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #e5e7eb;">
+                    <span class="assign-label" style="font-weight:600;">Display Name</span>
+                    <select class="assign-select" name="name_src" data-panel="<%= gid %>">
+                      <option value="null" <%= 'selected' if current_name_src.nil? || current_name_src == 'null' %>>— auto (best available) —</option>
+                      <option value="vw_name" <%= 'selected' if current_name_src == 'vw_name' %>>
+                        OIP Name (GetName)<%= vw_name_val ? ": \"#{vw_name_val.truncate(40)}\"" : " — not set on sample" %>
+                      </option>
+                      <% name_sources.reject { |k, _| k == "vw_name" }.each do |key, preview| %>
+                        <option value="<%= key %>" <%= 'selected' if current_name_src == key %>><%= key %>: "<%= preview %>"</option>
+                      <% end %>
+                    </select>
+                  </div>
 
                   <%
                     # Build source options grouped by category
@@ -341,40 +467,76 @@
                         COMPONENT MAPPINGS (<%= sample_comps.size %> layers)
                       </div>
                       <div class="comp-body" id="comp-body-<%= gid %>">
-                        <% sample_comps.each_with_index do |comp, comp_idx| %>
+                        <p style="font-size:10px;color:#666;margin:4px 0 8px;">
+                          Components default to VW API values (area m², thickness mm, volume m³).
+                          All 8 BOQ fields available for override.
+                        </p>
+                        <% sample_comps.each_with_index do |comp, panel_idx| %>
                           <%
-                            comp_class = comp[:class]
+                            comp_display = comp[:name].presence || comp[:class]
+                            comp_class = comp[:class].presence || comp[:name]
+                            comp_idx = comp[:_idx] || panel_idx
                             comp_mapping = mapping&.component_measurement_mappings
                               &.find_by(component_class: comp_class, component_index: comp_idx)
 
-                            # All 8 fields — same as parent, with component-aware defaults
+                            # V2.9: Show the three QS quantities from VW API
+                            comp_area = comp[:net_area_m2]
+                            comp_thick = comp[:thickness]
+                            comp_vol = comp[:net_volume_m3]
+                            comp_len = comp[:length_mm] || comp[:length_m]&.*(1000)
+
+                            # ALL 8 BOQ fields — QS needs full control
                             comp_fields = [
                               ["Count",  :count_src,     "fixed_1"],
-                              ["Length", :length_src,    "parent.length"],
+                              ["Length", :length_src,    nil],
                               ["Width",  :width_src,     "comp.thickness"],
-                              ["Height", :height_src,    "calc.eff_height"],
-                              ["Perim",  :perimeter_src, "parent.perimeter"],
+                              ["Height", :height_src,    nil],
+                              ["Perim",  :perimeter_src, nil],
                               ["Area",   :area_src,      nil],
-                              ["V.Area", :wall_area_src, "calc.comp_wall_area"],
-                              ["Volume", :volume_src,    "calc.comp_volume"],
+                              ["V.Area", :wall_area_src, "comp.net_area_m2"],
+                              ["Volume", :volume_src,    "comp.net_volume_m3"],
                             ]
                             comp_key = "#{comp_class}##{comp_idx}"
                           %>
                           <div class="comp-item">
-                            <h5><%= comp_class %> <span style="font-size:10px;color:#888;">[#<%= comp_idx %>]</span></h5>
+                            <h5>
+                              <%= comp_display %>
+                              <% if comp[:material].present? && comp[:material].to_s != "0" %>
+                                <span style="font-size:9px;color:#888;">— <%= truncate(comp[:material].to_s, length: 30) %></span>
+                              <% end %>
+                            </h5>
                             <div class="comp-info">
-                              thick=<%= comp[:thickness] %>mm · top_off=<%= comp[:top_offset] %>mm · bot_off=<%= comp[:bottom_offset] %>mm
-                              <% if comp[:calc_eff_height] %>
-                                · eff_h=<%= comp[:calc_eff_height].round %>mm
+                              <% if comp_thick && comp_thick > 0 %>
+                                <strong><%= comp_thick %>mm</strong>
                               <% end %>
-                              <% if comp[:calc_gross_area] %>
-                                · gross=<%= number_with_precision(comp[:calc_gross_area], precision: 2) %>m²
+                              <% if comp_area && comp_area > 0 %>
+                                · <strong><%= number_with_precision(comp_area, precision: 2) %> m²</strong>
                               <% end %>
-                              <% if comp[:calc_net_area] %>
-                                · net=<%= number_with_precision(comp[:calc_net_area], precision: 2) %>m²
+                              <% if comp_vol && comp_vol > 0 %>
+                                · <%= number_with_precision(comp_vol, precision: 4) %> m³
                               <% end %>
-                              <% if comp[:material].present? && comp[:material] != "0" %>
-                                · <%= truncate(comp[:material].to_s, length: 30) %>
+                              <% if comp_len && comp_len > 0 %>
+                                · len=<%= number_with_delimiter(comp_len.round) %>mm
+                              <% end %>
+                              <%# Slab/roof edge offsets %>
+                              <% if comp[:auto_edge_offset].to_f != 0 %>
+                                · auto_edge=<%= comp[:auto_edge_offset] %>mm
+                              <% end %>
+                              <% if comp[:manual_edge_offset].to_f != 0 %>
+                                · manual_edge=<%= comp[:manual_edge_offset] %>mm
+                              <% end %>
+                              <% if comp[:offset_area_m2].to_f > 0 %>
+                                · <strong style="color:#8e44ad;"><%= number_with_precision(comp[:offset_area_m2], precision: 2) %> m² (offset adj.)</strong>
+                              <% end %>
+                              <% if comp[:offset_perim_mm].to_f > 0 %>
+                                · <span style="color:#8e44ad;">perim=<%= number_with_delimiter(comp[:offset_perim_mm].round) %>mm (adj.)</span>
+                              <% end %>
+                              <%# Wall offsets %>
+                              <% if comp[:top_offset].to_f != 0 %>
+                                · top=<%= comp[:top_offset] %>mm
+                              <% end %>
+                              <% if comp[:bottom_offset].to_f != 0 %>
+                                · bot=<%= comp[:bottom_offset] %>mm
                               <% end %>
                             </div>
                             <% comp_fields.each do |label, field, default_val| %>
@@ -403,7 +565,7 @@
                                   <%# ── Component fields: dynamically show all numeric values ── %>
                                   <%
                                     comp_exclude = %w[i class class_idx material material_idx texture function
-                                                      follow_top_peaks follow_bottom_peaks name]
+                                                      follow_top_peaks follow_bottom_peaks name _idx]
                                     comp_numerics = comp.select { |k, v|
                                       v.is_a?(Numeric) && v != 0 && !comp_exclude.include?(k.to_s)
                                     }.sort_by(&:first)
@@ -429,20 +591,6 @@
                                   <% end %>
 
                                   <optgroup label="Calculated">
-                                    <option value="calc.l_x_h"          <%= 'selected' if current_comp_src == 'calc.l_x_h' %>>calc: Length × Height (m²)</option>
-                                    <option value="calc.l_x_w"          <%= 'selected' if current_comp_src == 'calc.l_x_w' %>>calc: Length × Width (m²)</option>
-                                    <option value="calc.l_x_w_x_h"      <%= 'selected' if current_comp_src == 'calc.l_x_w_x_h' %>>calc: L × W × H (m³)</option>
-                                    <option value="calc.perim_x_h"      <%= 'selected' if current_comp_src == 'calc.perim_x_h' %>>calc: Perim × Height (m²)</option>
-                                    <option value="calc.gross_x_thick"   <%= 'selected' if current_comp_src == 'calc.gross_x_thick' %>>calc: wall.gross × thick (m³)</option>
-                                    <option value="calc.area_x_thick"    <%= 'selected' if current_comp_src == 'calc.area_x_thick' %>>calc: Area × thickness (m³)</option>
-                                  </optgroup>
-                                  <optgroup label="Circular Geometry">
-                                    <option value="calc.circumference"   <%= 'selected' if current_comp_src == 'calc.circumference' %>>circ: Dia × π (circumference mm)</option>
-                                    <option value="calc.curved_area"     <%= 'selected' if current_comp_src == 'calc.curved_area' %>>circ: Dia × π × H (curved m²)</option>
-                                    <option value="calc.circle_area"     <%= 'selected' if current_comp_src == 'calc.circle_area' %>>circ: π/4 × Dia² (area m²)</option>
-                                    <option value="calc.circle_vol"      <%= 'selected' if current_comp_src == 'calc.circle_vol' %>>circ: π/4 × Dia² × H (vol m³)</option>
-                                  </optgroup>
-                                  <optgroup label="Component Calcs">
                                     <option value="calc.eff_height"      <%= 'selected' if current_comp_src == 'calc.eff_height' %>>comp: eff_height (h − offsets)</option>
                                     <option value="calc.comp_wall_area"  <%= 'selected' if current_comp_src == 'calc.comp_wall_area' %>>comp: wall area (l × eff_h)</option>
                                     <option value="calc.comp_volume"     <%= 'selected' if current_comp_src == 'calc.comp_volume' %>>comp: volume (area × thick)</option>
@@ -458,11 +606,15 @@
 
                   <%# ── Save Buttons ── %>
                   <div class="map-actions">
-                    <button class="btn-save" onclick="saveMapping('<%= gid %>', '<%= group[:vw_class] %>', <%= sample_obj.vw_type || 'null' %>, '<%= sample_obj.pio %>', false)">
+                    <button class="btn-save"
+                            title="Save this mapping for objects with class '<%= group[:vw_class] %>' and type <%= sample_obj.vw_type %>. Only objects matching this exact class (or child classes) will use it."
+                            onclick="saveMapping('<%= gid %>', '<%= group[:vw_class] %>', <%= sample_obj.vw_type || 'null' %>, '<%= sample_obj.pio %>', false)">
                       Save for "<%= group[:vw_class] %>"
                     </button>
-                    <button class="btn-save-wild" onclick="saveMapping('<%= gid %>', '<%= group[:vw_class] %>', <%= sample_obj.vw_type || 'null' %>, '<%= sample_obj.pio %>', true)">
-                      Save as wildcard for type <%= sample_obj.vw_type %>
+                    <button class="btn-save-wild"
+                            title="Save as a wildcard rule for ALL objects with type=<%= sample_obj.vw_type %><%= sample_obj.pio.present? ? " and pio=#{sample_obj.pio}" : '' %>, regardless of class. Any class without its own specific mapping will fall through to this."
+                            onclick="saveMapping('<%= gid %>', '<%= group[:vw_class] %>', <%= sample_obj.vw_type || 'null' %>, '<%= sample_obj.pio %>', true)">
+                      Save * (all type <%= sample_obj.vw_type %>)
                     </button>
                     <button class="btn-cancel" onclick="toggleMapPanel('<%= gid %>')">Cancel</button>
                     <span class="save-msg" id="save-msg-<%= gid %>">Saved!</span>
@@ -480,7 +632,56 @@
             resolved = obj_resolver ? obj_resolver.resolve : {}
           %>
           <tr class="item-row" data-items="<%= gid %>" style="border-left: 3px solid <%= sub_border %>;">
-            <td class="mat"><%= obj.material.present? ? truncate(obj.material, length: 50) : '' %></td>
+            <td class="mat">
+              <%
+                # Resolve display name from mapping's name_src, or fall back to auto
+                obj_raw = (obj.raw_json || {}).deep_symbolize_keys rescue {}
+                display_name = nil
+                name_src_field = mapping&.name_src
+
+                if name_src_field.present? && name_src_field != "null"
+                  display_name = case name_src_field
+                  when "vw_name"     then obj_raw[:vw_name]
+                  when "description" then obj_raw[:description]
+                  when "ifc_entity"  then obj_raw[:ifc_entity]
+                  when "ifc_name"    then obj_raw[:ifc_name]
+                  when "style_name"  then obj_raw[:style_name]
+                  when "class"       then obj_raw[:class]
+                  when "pio"         then obj_raw[:pio]
+                  when "material"    then obj.material
+                  when "layer"       then obj_raw[:layer]
+                  when "tags"        then (obj_raw[:tags] || []).join(", ")
+                  when /\Awall\./    then obj_raw.dig(:wall, name_src_field.sub("wall.", "").to_sym)
+                  when /\Aslab\./    then obj_raw.dig(:slab, name_src_field.sub("slab.", "").to_sym)
+                  when /\Apio\./     then obj_raw.dig(:pio_params, name_src_field.sub("pio.", "").to_sym)
+                  when /\Arec\./
+                    # rec.RecordName::FieldName → dig into records array
+                    rec_ref = name_src_field.sub("rec.", "")
+                    if rec_ref.include?("::")
+                      rn, fn = rec_ref.split("::", 2)
+                      (obj_raw[:records] || []).each do |r|
+                        r = r.deep_symbolize_keys rescue r
+                        if r[:record].to_s == rn
+                          val = r.dig(:fields, fn.to_sym)
+                          break val if val.present?
+                        end
+                      end
+                    end
+                  when /\Auf\./      then obj_raw.dig(:user_fields, name_src_field.sub("uf.", "").to_sym)
+                  end
+                  display_name = display_name.to_s.strip.presence
+                end
+
+                # Auto fallback: name → description → style_name → material
+                display_name ||= obj.name.presence || obj.description.presence
+              %>
+              <% if display_name.present? %>
+                <strong style="color:#1a1a2e;font-size:11px;"><%= truncate(display_name, length: 50) %></strong>
+              <% end %>
+              <% if obj.material.present? && obj.material != display_name %>
+                <span style="font-size:9px;color:#888;"><%= truncate(obj.material, length: 35) %></span>
+              <% end %>
+            </td>
             <td class="num"><%= resolved[:count] || 1 %></td>
             <td class="num"><%= resolved[:length]    ? number_with_delimiter(resolved[:length].round)    : '' %></td>
             <td class="num"><%= resolved[:width]     ? number_with_delimiter(resolved[:width].round)     : '' %></td>
@@ -519,30 +720,39 @@
             <% comp_data = comp_data.deep_symbolize_keys rescue comp_data %>
             <% next unless comp_data[:class].present? || comp_data[:name].present? %>
             <%
+              comp_class_key = comp_data[:class].presence || comp_data[:name]
               comp_mapping_rec = mapping&.component_measurement_mappings
-                &.find_by(component_class: comp_data[:class], component_index: comp_idx)
+                &.find_by(component_class: comp_class_key, component_index: comp_idx)
 
               if comp_mapping_rec && obj_resolver
                 comp_resolved = MappingResolver.new(obj, comp_mapping_rec,
                   component: comp_data, parent_resolved: resolved).resolve
               else
-                # ── V2.8: Direct from VW API — no calculation ──
-                # GetComponentNetArea(h,i)    → mm² (openings deducted, peaks/rakes correct)
-                # GetComponentWidth(h,i)      → mm
-                # GetComponentNetVolume(h,i)  → mm³
+                # ── Direct from VW API — no calculation ──
+                # For slabs/roofs: prefer offset-adjusted area (accounts for edge offsets)
+                # For walls: use net_area (accounts for openings + peaks)
                 comp_len = comp_data[:length_mm]&.to_f
                 comp_len = resolved[:length] unless comp_len && comp_len > 0
-                comp_area = comp_data[:net_area_m2]&.to_f
+
+                # Prefer offset_area (slab edge offset adjusted) over net_area
+                comp_area = comp_data[:offset_area_m2]&.to_f
+                comp_area = comp_data[:net_area_m2]&.to_f unless comp_area && comp_area > 0
                 comp_area = nil unless comp_area && comp_area > 0
-                comp_vol = comp_data[:net_volume_m3]&.to_f
+
+                comp_vol = comp_data[:offset_volume_m3]&.to_f
+                comp_vol = comp_data[:net_volume_m3]&.to_f unless comp_vol && comp_vol > 0
                 comp_vol = nil unless comp_vol && comp_vol > 0
+
+                # Prefer offset perimeter for slabs/roofs
+                comp_perim = comp_data[:offset_perim_mm]&.to_f
+                comp_perim = nil unless comp_perim && comp_perim > 0
 
                 comp_resolved = {
                   count:     1,
                   length:    comp_len,
                   width:     comp_data[:thickness]&.to_f,
                   height:    nil,
-                  perimeter: nil,
+                  perimeter: comp_perim,
                   area:      nil,
                   wall_area: comp_area,
                   volume:    comp_vol,

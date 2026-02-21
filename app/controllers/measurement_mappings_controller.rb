@@ -60,7 +60,7 @@ class MeasurementMappingsController < ApplicationController
   def mapping_params
     params.permit(
       :mapping_key, :class_pattern, :vw_type, :pio, :confidence,
-      :count_src, :length_src, :width_src, :height_src,
+      :name_src, :count_src, :length_src, :width_src, :height_src,
       :perimeter_src, :area_src, :wall_area_src, :volume_src, :notes
     )
   end
