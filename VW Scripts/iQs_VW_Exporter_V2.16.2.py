@@ -1,4 +1,4 @@
-# iQs VW Exporter V2.16.3 - Per-Component Quantities (Verified API)
+# iQs VW Exporter V2.16.2 - Per-Component Quantities (Verified API)
 # ═══════════════════════════════════════════════════════════════
 # V2.12 adds per-component area/volume/length using VERIFIED API calls:
 #   GetComponentNetArea(h, i)       → mm² (one face, minus openings)
@@ -923,51 +923,10 @@ def get_components_raw(h, t):
                     c["net_area_m2"]  = area_mm2 / 1e6
                     c["net_area_method"] = area_method
 
-                # VOLUME (mm³) — robust slab-safe path (matches v1.2):
-                #   GetComponentNetVolume(h,i) → fallback ComponentVolume(GetComponents(h),i) → fallback GetComponentVolume(h,i)
-                vol_mm3 = None
-                vol_method = None
-
-                if hv("GetComponentNetVolume"):
-                    okV, vV = _unwrap_ok_val(sc(vs.GetComponentNetVolume, h, i))
-                    if okV and vV is not None:
-                        try:
-                            vol_mm3 = float(vV)
-                            vol_method = "GetComponentNetVolume"
-                        except:
-                            pass
-
-                if (vol_mm3 is None or vol_mm3 == 0.0) and hv("GetComponents") and hv("ComponentVolume"):
-                    okC, comps_h = _unwrap_ok_val(sc(vs.GetComponents, h))
-                    if okC and comps_h:
-                        okB, vB = _unwrap_ok_val(sc(vs.ComponentVolume, comps_h, i))
-                        if vB is not None:
-                            try:
-                                vol_mm3 = float(vB)
-                                vol_method = "ComponentVolume(GetComponents)"
-                            except:
-                                pass
-
-                if (vol_mm3 is None or vol_mm3 == 0.0) and hv("GetComponentVolume"):
-                    okG, vG = _unwrap_ok_val(sc(vs.GetComponentVolume, h, i))
-                    if okG and vG is not None:
-                        try:
-                            vol_mm3 = float(vG)
-                            vol_method = "GetComponentVolume"
-                        except:
-                            pass
-
-                if vol_mm3 is not None:
-                    c["net_volume_mm3"] = vol_mm3
-                    c["net_volume_m3"]  = vol_mm3 / 1e9
-                    c["net_volume_method"] = vol_method
-
-                # QA: implied thickness (mm) if both net area and net volume exist
-                if c.get("net_area_mm2") not in (None, 0.0) and c.get("net_volume_mm3") is not None:
-                    try:
-                        c["implied_thickness_mm"] = float(c["net_volume_mm3"]) / float(c["net_area_mm2"])
-                    except:
-                        pass
+                # VOLUME (mm³) — keep existing NetVolume (slab-safe)
+                gc("GetComponentNetVolume", "net_volume_mm3", sf)
+                if "net_volume_mm3" in c and c["net_volume_mm3"] is not None:
+                    c["net_volume_m3"] = c["net_volume_mm3"] / 1e9
 
                 # V2.16 DIAGNOSTIC: log raw API return for slab components
                 if hv("GetComponentNetArea"):

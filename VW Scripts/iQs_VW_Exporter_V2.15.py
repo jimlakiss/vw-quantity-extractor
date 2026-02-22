@@ -1,4 +1,4 @@
-# iQs VW Exporter V2.16.3 - Per-Component Quantities (Verified API)
+# iQs VW Exporter V2.15 - Per-Component Quantities (Verified API)
 # ═══════════════════════════════════════════════════════════════
 # V2.12 adds per-component area/volume/length using VERIFIED API calls:
 #   GetComponentNetArea(h, i)       → mm² (one face, minus openings)
@@ -817,26 +817,12 @@ def get_components_raw(h, t):
     if (not ok) or n <= 0:
         return None
     def _unwrap_ok_val(r):
-        """Normalize VW Python returns to (ok, value).
-        Based on Jim's proven standalone unwrap — handles list AND tuple."""
-        if isinstance(r, (list, tuple)):
-            if len(r) == 2:
-                ok = r[0]
-                val = r[1]
-                if isinstance(ok, bool):
-                    return ok, val
-                if isinstance(ok, (int, float)) and ok in (0, 1):
-                    return bool(ok), val
-                # Not a (ok, val) pattern — return whole thing as value
-                return True, r
+        if isinstance(r, tuple):
+            if len(r) >= 2:
+                return bool(r[0]), r[1]
             if len(r) == 1:
                 return True, r[0]
-            if len(r) == 0:
-                return False, None
-            # 3+ elements — skip first if bool, else return whole thing
-            if isinstance(r[0], bool):
-                return r[0], r[1]
-            return True, r
+            return False, None
         return True, r
     comps = []
     for i in range(1, n + 1):
@@ -874,114 +860,36 @@ def get_components_raw(h, t):
             gc("GetComponentFollowBottomWallPeaks", "follow_bottom_peaks", bool)
 
         # ── V2.12: Slab component edge offsets ──
-        if t in (71, 84, 86):  # slabs and roofs (86 also observed for Slab PIO)
+        if t in (71, 84):  # slabs and roofs
             gc("GetComponentAutoBoundEdgeOffset", "auto_edge_offset", lambda v: sfz(v, default=0.0))
             gc("GetComponentManualEdgeOffset", "manual_edge_offset", lambda v: sfz(v, default=0.0))
 
-        # ── Per-component QUANTITIES ──
-        # Slabs/Roofs: use the robust slab-safe area path proven in iqs_slab_component_areas_v1_1:
-        #   GetComponentNetArea(h,i) → fallback ComponentArea(GetComponents(h),i) → fallback GetComponentArea(h,i)
-        if t in (68, 71, 84, 86):
-            if t in (71, 84, 86):
-                # AREA (mm²)
-                area_mm2 = None
-                area_method = None
-
-                if hv("GetComponentNetArea"):
-                    okA, vA = _unwrap_ok_val(sc(vs.GetComponentNetArea, h, i))
-                    if okA and vA is not None:
-                        try:
-                            area_mm2 = float(vA)
-                            area_method = "GetComponentNetArea"
-                        except:
-                            pass
-
-                # Some slab styles / edge-offset cases need the components-handle route
-                if (area_mm2 is None or area_mm2 == 0.0) and hv("GetComponents") and hv("ComponentArea"):
-                    okC, comps_h = _unwrap_ok_val(sc(vs.GetComponents, h))
-                    if okC and comps_h:
-                        okB, vB = _unwrap_ok_val(sc(vs.ComponentArea, comps_h, i))
-                        if vB is not None:
-                            try:
-                                area_mm2 = float(vB)
-                                area_method = "ComponentArea(GetComponents)"
-                            except:
-                                pass
-
-                # Last resort (often 0 for slabs, but keep for completeness)
-                if (area_mm2 is None or area_mm2 == 0.0) and hv("GetComponentArea"):
-                    okG, vG = _unwrap_ok_val(sc(vs.GetComponentArea, h, i))
-                    if okG and vG is not None:
-                        try:
-                            area_mm2 = float(vG)
-                            area_method = "GetComponentArea"
-                        except:
-                            pass
-
-                if area_mm2 is not None:
-                    c["net_area_mm2"] = area_mm2
-                    c["net_area_m2"]  = area_mm2 / 1e6
-                    c["net_area_method"] = area_method
-
-                # VOLUME (mm³) — robust slab-safe path (matches v1.2):
-                #   GetComponentNetVolume(h,i) → fallback ComponentVolume(GetComponents(h),i) → fallback GetComponentVolume(h,i)
-                vol_mm3 = None
-                vol_method = None
-
-                if hv("GetComponentNetVolume"):
-                    okV, vV = _unwrap_ok_val(sc(vs.GetComponentNetVolume, h, i))
-                    if okV and vV is not None:
-                        try:
-                            vol_mm3 = float(vV)
-                            vol_method = "GetComponentNetVolume"
-                        except:
-                            pass
-
-                if (vol_mm3 is None or vol_mm3 == 0.0) and hv("GetComponents") and hv("ComponentVolume"):
-                    okC, comps_h = _unwrap_ok_val(sc(vs.GetComponents, h))
-                    if okC and comps_h:
-                        okB, vB = _unwrap_ok_val(sc(vs.ComponentVolume, comps_h, i))
-                        if vB is not None:
-                            try:
-                                vol_mm3 = float(vB)
-                                vol_method = "ComponentVolume(GetComponents)"
-                            except:
-                                pass
-
-                if (vol_mm3 is None or vol_mm3 == 0.0) and hv("GetComponentVolume"):
-                    okG, vG = _unwrap_ok_val(sc(vs.GetComponentVolume, h, i))
-                    if okG and vG is not None:
-                        try:
-                            vol_mm3 = float(vG)
-                            vol_method = "GetComponentVolume"
-                        except:
-                            pass
-
-                if vol_mm3 is not None:
-                    c["net_volume_mm3"] = vol_mm3
-                    c["net_volume_m3"]  = vol_mm3 / 1e9
-                    c["net_volume_method"] = vol_method
-
-                # QA: implied thickness (mm) if both net area and net volume exist
-                if c.get("net_area_mm2") not in (None, 0.0) and c.get("net_volume_mm3") is not None:
+        # ── Per-component QUANTITIES (verified API calls) ──
+        # Only on types with 3D components: walls(68), slabs(71), roofs(84)
+        # NOTE: GetComponentNetArea returns (ok, area_mm²) tuple — must unwrap!
+        #       VW handles slab edge offsets internally — no manual calc needed.
+        if t in (68, 71, 84):
+            # REAL = vs.GetComponentNetArea(object, componentIndex) → mm²
+            if hv("GetComponentNetArea"):
+                ok_a, na_mm2 = _unwrap_ok_val(sc(vs.GetComponentNetArea, h, i))
+                if ok_a and na_mm2 is not None:
                     try:
-                        c["implied_thickness_mm"] = float(c["net_volume_mm3"]) / float(c["net_area_mm2"])
-                    except:
-                        pass
+                        na = float(na_mm2)
+                        if na > 0:
+                            c["net_area_mm2"] = na
+                            c["net_area_m2"]  = na / 1e6
+                    except: pass
 
-                # V2.16 DIAGNOSTIC: log raw API return for slab components
-                if hv("GetComponentNetArea"):
-                    raw_ret = sc(vs.GetComponentNetArea, h, i)
-                    dbg(f"SLAB COMP AREA: comp={i} type={type(raw_ret).__name__} raw={repr(raw_ret)} → method={c.get('net_area_method','NONE')} m2={c.get('net_area_m2','NONE')}")
-            else:
-                # Walls: keep existing NetArea/NetVolume path
-                gc("GetComponentNetArea",   "net_area_mm2",   sf)
-                gc("GetComponentNetVolume", "net_volume_mm3", sf)
-                # Derive m² and m³ from mm values
-                if c.get("net_area_mm2") and c["net_area_mm2"] > 0:
-                    c["net_area_m2"] = c["net_area_mm2"] / 1e6
-                if c.get("net_volume_mm3") and c["net_volume_mm3"] > 0:
-                    c["net_volume_m3"] = c["net_volume_mm3"] / 1e9
+            # REAL = vs.GetComponentNetVolume(object, componentIndex) → mm³
+            if hv("GetComponentNetVolume"):
+                ok_v, nv_mm3 = _unwrap_ok_val(sc(vs.GetComponentNetVolume, h, i))
+                if ok_v and nv_mm3 is not None:
+                    try:
+                        nv = float(nv_mm3)
+                        if nv > 0:
+                            c["net_volume_mm3"] = nv
+                            c["net_volume_m3"]  = nv / 1e9
+                    except: pass
 
         # ── V2.7: Per-component start/end points (walls only) ──
         # Gives per-component LENGTH from centre-line distance
@@ -1222,7 +1130,7 @@ def iqs_push(jsonl_path):
     except: pass
     payload = json.dumps({
         "vw_import": {
-            "project": project, "exporter_version": "2.16",
+            "project": project, "exporter_version": "2.12",
             "exported_at": datetime.now().isoformat(),
             "object_count": ST["exp"], "jsonl_path": jsonl_path,
             "objects": ST["records"],
@@ -1262,7 +1170,7 @@ def run():
         mfp = None
     ensure_record_format(CFG["uuid_rec"], CFG["uuid_fld"])
     c = build_criteria()
-    dbg("=== iQs VW Exporter V2.16 ==="); dbg(f"Criteria: {c}"); dbg(f"Export dir: {d}")
+    dbg("=== iQs VW Exporter V2.12 ==="); dbg(f"Criteria: {c}"); dbg(f"Export dir: {d}")
     vs.Message(f"Starting export ({c})...")
     vs.ForEachObject(harvest,c)
     ST["jfp"].close()

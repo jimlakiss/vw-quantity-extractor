@@ -188,10 +188,8 @@ class MappingResolver
       bot = @comp&.dig(:bottom_offset).to_f  # positive = shorter
       wall_h ? (wall_h.to_f + top - bot) : nil
     when "calc.comp_wall_area"
-      # V2.12: prefer offset-adjusted area for slabs/roofs (edge offset geometry)
-      # Then fall back to net_area (VW API, handles wall openings + peaks)
-      direct_a = @comp&.dig(:offset_area_m2)&.to_f
-      direct_a = @comp&.dig(:net_area_m2)&.to_f unless direct_a && direct_a > 0
+      # VW GetComponentNetArea handles: wall openings, peaks, slab edge offsets
+      direct_a = @comp&.dig(:net_area_m2)&.to_f
       return direct_a if direct_a && direct_a > 0
 
       parent_l = @parent[:length] ||
@@ -206,9 +204,8 @@ class MappingResolver
       eff_h = resolve_calc("calc.eff_height")
       (parent_l && eff_h) ? (parent_l.to_f * eff_h.to_f / 1e6) : nil
     when "calc.comp_volume"
-      # V2.12: prefer offset-adjusted volume, then VW API volume
-      direct_v = @comp&.dig(:offset_volume_m3)&.to_f
-      direct_v = @comp&.dig(:net_volume_m3)&.to_f unless direct_v && direct_v > 0
+      # VW GetComponentNetVolume handles same geometry as NetArea
+      direct_v = @comp&.dig(:net_volume_m3)&.to_f
       return direct_v if direct_v && direct_v > 0
 
       comp_area = resolve_calc("calc.comp_wall_area")

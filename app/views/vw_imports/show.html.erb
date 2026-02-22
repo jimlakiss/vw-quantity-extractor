@@ -518,18 +518,12 @@
                               <% if comp_len && comp_len > 0 %>
                                 · len=<%= number_with_delimiter(comp_len.round) %>mm
                               <% end %>
-                              <%# Slab/roof edge offsets %>
+                              <%# Slab/roof edge offsets (info only — VW API handles geometry) %>
                               <% if comp[:auto_edge_offset].to_f != 0 %>
                                 · auto_edge=<%= comp[:auto_edge_offset] %>mm
                               <% end %>
                               <% if comp[:manual_edge_offset].to_f != 0 %>
                                 · manual_edge=<%= comp[:manual_edge_offset] %>mm
-                              <% end %>
-                              <% if comp[:offset_area_m2].to_f > 0 %>
-                                · <strong style="color:#8e44ad;"><%= number_with_precision(comp[:offset_area_m2], precision: 2) %> m² (offset adj.)</strong>
-                              <% end %>
-                              <% if comp[:offset_perim_mm].to_f > 0 %>
-                                · <span style="color:#8e44ad;">perim=<%= number_with_delimiter(comp[:offset_perim_mm].round) %>mm (adj.)</span>
                               <% end %>
                               <%# Wall offsets %>
                               <% if comp[:top_offset].to_f != 0 %>
@@ -728,31 +722,24 @@
                 comp_resolved = MappingResolver.new(obj, comp_mapping_rec,
                   component: comp_data, parent_resolved: resolved).resolve
               else
-                # ── Direct from VW API — no calculation ──
-                # For slabs/roofs: prefer offset-adjusted area (accounts for edge offsets)
-                # For walls: use net_area (accounts for openings + peaks)
+                # ── Direct from VW API ──
+                # GetComponentNetArea handles: wall openings, peaks, slab edge offsets
+                # GetComponentNetVolume handles: same geometry adjustments
                 comp_len = comp_data[:length_mm]&.to_f
                 comp_len = resolved[:length] unless comp_len && comp_len > 0
 
-                # Prefer offset_area (slab edge offset adjusted) over net_area
-                comp_area = comp_data[:offset_area_m2]&.to_f
-                comp_area = comp_data[:net_area_m2]&.to_f unless comp_area && comp_area > 0
+                comp_area = comp_data[:net_area_m2]&.to_f
                 comp_area = nil unless comp_area && comp_area > 0
 
-                comp_vol = comp_data[:offset_volume_m3]&.to_f
-                comp_vol = comp_data[:net_volume_m3]&.to_f unless comp_vol && comp_vol > 0
+                comp_vol = comp_data[:net_volume_m3]&.to_f
                 comp_vol = nil unless comp_vol && comp_vol > 0
-
-                # Prefer offset perimeter for slabs/roofs
-                comp_perim = comp_data[:offset_perim_mm]&.to_f
-                comp_perim = nil unless comp_perim && comp_perim > 0
 
                 comp_resolved = {
                   count:     1,
                   length:    comp_len,
                   width:     comp_data[:thickness]&.to_f,
                   height:    nil,
-                  perimeter: comp_perim,
+                  perimeter: nil,
                   area:      nil,
                   wall_area: comp_area,
                   volume:    comp_vol,
